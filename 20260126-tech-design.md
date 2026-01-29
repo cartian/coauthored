@@ -1,3 +1,10 @@
+---
+date: 2026-01-26
+description: Technical design for adding CRM Entity-rooted graph views to entity-map
+repository: fund-admin
+tags: [tech-design, entity-map, crm-entity, gp-member, architecture]
+---
+
 # Entity Map: CRM Entity-Rooted Views (V1)
 
 ## Summary

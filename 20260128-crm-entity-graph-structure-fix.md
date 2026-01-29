@@ -1,3 +1,10 @@
+---
+date: 2026-01-28
+description: Agent prompt and fix documentation for incorrect graph structure in CRM entity views
+repository: fund-admin
+tags: [bug-fix, entity-map, crm-entity, agent-prompt]
+---
+
 # Agent Prompt: Fix CRM Entity-Rooted Graph Structure
 
 ## Context

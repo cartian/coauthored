@@ -1,3 +1,10 @@
+---
+date: 2026-01-28
+description: Design decision document for CRM entity view permission model
+repository: fund-admin
+tags: [design-decision, permissions, entity-map, crm-entity, security]
+---
+
 # CRM Entity View Permissions Design
 
 ## The Problem We're Solving

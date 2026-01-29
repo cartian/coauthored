@@ -1,3 +1,10 @@
+---
+date: 2026-01-28
+description: Manual API testing results for CRM entity-rooted graph endpoint
+repository: fund-admin
+tags: [testing, api, entity-map, crm-entity, manual-test]
+---
+
 # CRM Entity-Rooted Graph API Test Results
 
 **PR:** [#49859](https://github.com/carta/fund-admin/pull/49859) - feat(entity-map): add CRM entity-rooted graph views (Phase 1)

@@ -1,3 +1,10 @@
+---
+date: 2026-01-28
+description: Comprehensive guide to the Fund Admin permission system architecture
+repository: fund-admin
+tags: [permissions, security, architecture, reference, rbac]
+---
+
 # Fund Admin Permission System: A Comprehensive Guide
 
 ## Introduction
