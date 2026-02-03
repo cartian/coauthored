@@ -1,128 +1,142 @@
 ---
-date: 2026-01-28
-description: Session summary for CRM Entity-rooted views implementation (Phases 1-2)
-repository: fund-admin
-tags: [entity-map, crm-entity, permissions, tdd, session-summary]
+date: 2026-01-29
+description: Session summary for CRM Entity-rooted views implementation
+repository: fund-admin, carta-frontend-platform
+tags: [entity-map, crm-entity, permissions, session-summary]
 ---
 
 # Session Summary: CRM Entity-Rooted Views
 
-## What We Accomplished Today
+## Current State
 
-### Phase 1: Backend Infrastructure (Completed in Previous Session)
-- Added `build_for_crm_entity()` to `InvestedInRelationshipGraphBuilder`
-- Added `get_crm_entity_tree()` to `EntityMapService`
-- Created `EntityMapCrmEntityView` with URL routing
-- Wrote unit tests with TDD approach
+| Repository | Branch | Status |
+|------------|--------|--------|
+| fund-admin | `gpe-215.cartian.crm_entity_graph` | PR [#49859](https://github.com/carta/fund-admin/pull/49859) ready for review |
+| carta-frontend-platform | `gpe-215.cartian.crm_entity_frontend` | Ready for PR creation |
 
-### Phase 2: Permissions Integration (Completed Today)
-- Replaced fund-level permissions (`HasViewInvestmentsPermission & HasViewPartnersPermission & HasViewFundPerformancePermission`) with firm-level (`IsFirmMember | IsStaff`)
-- Added IDOR validation to prevent cross-firm data access
-- Documented the permission design decision
-
-**Key commits:**
-- `36275c80dac` - Phase 1: CRM entity graph views
-- `2ff7400c89d` - Phase 2: Firm membership and IDOR validation
+| Component | Status |
+|-----------|--------|
+| Backend API | ✅ Complete |
+| fund-admin frontend wrapper | ✅ Complete |
+| entity-map federated module | ✅ Complete |
 
 ---
 
-## Design Decisions Made
+## What's Been Built
 
-### Permission Model Architecture
+### Backend (Complete - fund-admin)
 
-We chose a two-layer permission approach:
+**Endpoint:**
+```
+GET /firm/{firm_uuid}/entity-atlas/crm-entity/{crm_entity_uuid}/
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `lightweight=true` | Minimal structure without partner details |
+| `end_date=YYYY-MM-DD` | Historical point-in-time metrics |
+
+**Key components:**
+- `build_for_crm_entity()` on `InvestedInRelationshipGraphBuilder` — Finds Partner records, traverses GP Entity → Main Fund relationships
+- `get_crm_entity_tree()` on `EntityMapService` — Orchestrates graph building with metrics
+- `EntityMapCrmEntityView` — API view with `IsFirmMember | IsStaff` permissions
+- `empty()` / `merge()` helpers on `InvestedInRelationshipGraph`
+- `include_gp_entity_funds_in_edges` param — Fixes edge creation for GP Entity investment relationships
+
+**Security:**
+- IDOR validation: CRM entity must belong to firm in URL
+- Missing entity → `404`, wrong firm → `PermissionDenied`
+
+### Frontend Wrapper (Complete - fund-admin)
+
+Updated `frontend/src/entity-map/index.tsx` to accept and pass `crmEntityId` prop to the federated module.
+
+### Entity-Map Federated Module (Complete - carta-frontend-platform)
+
+**Files created/modified:**
+
+| File | Change |
+|------|--------|
+| `Entry.tsx` | Added `crmEntityId` prop |
+| `FundAdminContext.tsx` | Added `crmEntityId` to context |
+| `constants.ts` | Added `CRM_ENTITY_VIEW_MODE` constant |
+| `types.ts` | Extended `ViewMode` type |
+| `use-get-crm-entity-map.ts` | New API hook (uses `callApi` direct fetch) |
+| `CrmEntityView/CrmEntityView.tsx` | New view component |
+| `CrmEntityView/useCrmEntityViewState.ts` | State management hook |
+| `EntityMapContainer.tsx` | Routes to CrmEntityView when `crmEntityId` present |
+| `LayerDropdown.tsx` | Fixed type narrowing for new ViewMode |
+
+**Architecture:**
+- Feature flag gating happens in the **parent** (fund-admin), not entity-map
+- When `crmEntityId` is passed, entity-map renders `CrmEntityView`
+- When `crmEntityId` is absent, existing `FundView` is rendered
+- Uses `callApi` for API call since `fa-api-client` doesn't have the endpoint yet
+
+---
+
+## Key Discovery: Federated Architecture
+
+The entity-map frontend is a **federated module from a separate repository**. In fund-admin, we only have a thin wrapper:
+
+```tsx
+// frontend/src/entity-map/index.tsx
+<FARSComponent
+    scope="entityMap"
+    module="App"
+    props={{ firmUuid, crmEntityId }}
+/>
+```
+
+**Implication:** The actual `Entry.tsx`, `EntityMapContainer`, `CrmEntityView`, and API hooks live in carta-frontend-platform. The fund-admin PR only prepares the prop pass-through.
+
+---
+
+## Design Decisions
+
+### Permission Model
 
 | Layer | Responsibility | Implementation |
 |-------|---------------|----------------|
-| **View (gate)** | "Can you knock on this door?" | `IsFirmMember \| IsStaff` |
-| **Service (filter)** | "What can you see inside?" | Future: fund-level filtering |
+| **View (gate)** | "Can you access this endpoint?" | `IsFirmMember \| IsStaff` |
+| **Service (filter)** | "What can you see?" | Future: fund-level filtering |
 
-**Why this approach:**
-1. Existing fund-level permissions expect a `fund_uuid` in the URL - our view has `crm_entity_uuid` instead
-2. V1 doesn't show sensitive financial data on nodes, so firm-level gating is sufficient
-3. When financial data is added, fund-level filtering can be added in the service layer without changing the view
+**Why firm-level gating:** Existing fund-level permissions expect `fund_uuid` in URL. Our view has `crm_entity_uuid` instead. V1 doesn't show sensitive financial data, so firm-level is sufficient.
 
-**IDOR Prevention:**
-- Validate that `CRMEntity.organization_id` matches the `firm_uuid` from the URL
-- Return `Http404` if CRM entity doesn't exist
-- Return `PermissionDenied` if CRM entity belongs to a different firm
+### Feature Flag Strategy
 
-Full design rationale: `20260128-crm-entity-permissions-design.md`
+Feature flags are checked in **fund-admin** (the parent), not entity-map. This means:
+- Entity-map stays "dumb" - it doesn't make its own feature flag API calls
+- The presence of `crmEntityId` prop acts as the feature gate
+- Parent only passes `crmEntityId` when the flag is enabled
 
----
+### GP Entity Edge Handling
 
-## Starting Points for Tomorrow (Phase 3)
-
-### What Phase 3 Covers (Frontend)
-From the tech design:
-1. Update `Entry.tsx` to accept `crmEntityId` prop
-2. Create `CrmEntityRootedView` component
-3. Update `EntityMapContainer` routing
-4. Update Partner Dashboard to pass `crmEntityId`
-
-### Files to Explore
-```
-frontend/src/entity-map/Entry.tsx
-frontend/src/entity-map/EntityMapContainer.tsx
-frontend/src/partner-dashboard/  (find where entity map is mounted)
-```
-
-### Key Questions to Answer
-1. How does the Partner Dashboard currently get `crmEntityId` for the logged-in user?
-2. What's the existing pattern for routing between different view types in EntityMapContainer?
-3. Are there existing API hooks we can reuse for fetching the CRM entity graph?
-
-### Suggested Approach
-1. **Explore first** - Use the codebase-analyzer agent to understand the frontend structure
-2. **TDD the API hook** - Write tests for the new API endpoint integration
-3. **Component by component** - Build from Entry.tsx down to the view component
+GP Entity funds were missing from `fund_id_to_node_id` mapping, causing `KeyError` when creating investment edges. Fixed by adding `include_gp_entity_funds_in_edges=True` for CRM Entity views.
 
 ---
 
-## Workflow Pattern We're Using
+## Commits
 
-This session followed a deliberate pattern worth continuing:
+### fund-admin (gpe-215.cartian.crm_entity_graph)
 
-### 1. Tech Design as North Star
-- Reference `~/Desktop/tech-design.md` for requirements and scope
-- Each phase maps to a section of the design
-- Deviations are discussed and documented (e.g., single-firm vs multi-firm decision)
+| Commit | Description |
+|--------|-------------|
+| `b3b9f9f8ef9` | Phase 1: CRM entity-rooted graph views |
+| `39e83b70756` | Phase 2: Firm membership and IDOR validation |
+| `df4f58968ed` | Bug fix: GP Entity funds in edge mapping |
+| `e7c08674be2` | Phase 3 prep: Frontend crmEntityId prop |
+| `fe8d7aa9c85` | API schema regeneration |
 
-### 2. Documentation as We Go
-- Design decisions get their own markdown files with rationale
-- Session summaries capture context for future sessions
-- All docs go to `~/Projects/coauthored/` with date prefixes
+### carta-frontend-platform (gpe-215.cartian.crm_entity_frontend)
 
-### 3. TDD Implementation
-- **RED**: Write failing test that describes expected behavior
-- **GREEN**: Write minimal code to make test pass
-- **Refactor**: Clean up, run linters, verify all tests pass
-- Commit after each phase is green
-
-### 4. Manual Testing Checkpoints
-- After backend work, test endpoints with curl/httpie
-- Document test results and edge cases discovered
-- Fix issues before moving to frontend
-
-### 5. Progress Recording
-- Commit messages reference the phase: `feat(entity-map): ... (Phase N)`
-- Session summaries provide continuity between sessions
-- Branch name reflects the ticket: `gpe-215.cartian.crm_entity_graph`
-
----
-
-## Current State
-
-**Branch:** `gpe-215.cartian.crm_entity_graph`
-
-**Backend status:** Complete (Phases 1-2)
-- Endpoint: `GET /firm/{firm_uuid}/entity-atlas/crm-entity/{crm_entity_uuid}/`
-- Permissions: `IsFirmMember | IsStaff`
-- IDOR protection: Validates CRM entity belongs to firm
-
-**Frontend status:** Not started (Phase 3)
-
-**Next session goal:** Complete Phase 3 (Frontend) and prepare PR for review
+| Change | Description |
+|--------|-------------|
+| Entry/Context | Accept and provide `crmEntityId` prop |
+| ViewMode | Add `CRM_ENTITY_VIEW_MODE` constant and type |
+| API Hook | `useGetCrmEntityMap` with direct `callApi` |
+| CrmEntityView | New view component following FundView patterns |
+| EntityMapContainer | Route to CrmEntityView when crmEntityId present |
 
 ---
 
@@ -130,7 +144,22 @@ This session followed a deliberate pattern worth continuing:
 
 | Document | Purpose |
 |----------|---------|
-| `~/Desktop/tech-design.md` | Original tech design with all phases |
-| `20260128-crm-entity-permissions-design.md` | Permission model decision |
-| `20260128-crm-entity-api-test-results.md` | Manual API testing results |
-| `20260128-crm-entity-graph-structure-fix.md` | Bug fixes from Phase 1 |
+| `20260126-tech-design.md` | Original tech design |
+| `20260128-crm-entity-permissions-design.md` | Permission model rationale |
+| `20260129-crm-entity-api-test-results.md` | Manual API testing (9 scenarios) |
+| PR #49859 comments | Detailed test results with visualizations |
+
+---
+
+## Next Steps
+
+1. **Create PR** for carta-frontend-platform changes
+2. **Merge fund-admin PR** (#49859)
+3. **Integrate** - Test end-to-end by:
+   - Adding feature flag `GPE_215_CRM_ENTITY_MAP` (or similar)
+   - Enabling flag for test accounts
+   - Navigating to entity-map with `crmEntityId` in URL/props
+4. **Future work:**
+   - LP-side routing from Partner Dashboard
+   - Managing member visibility
+   - Update `fa-api-client` to include CRM entity endpoint
