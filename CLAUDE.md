@@ -24,7 +24,7 @@ Before writing a file, check existing subdirectories with `ls` and place the doc
 | Directory | Purpose | Examples |
 |-----------|---------|---------|
 | `entity-map/` | Entity Map feature work in fund-admin | Design docs, graph architecture analysis, CRM entity views |
-| `learning/` | General technical learning and reference material | Permissions overviews, proxy architecture notes, security guides |
+| `reference/` | General technical reference material and cross-cutting knowledge | Permissions overviews, proxy architecture notes, security guides |
 | `private/` | Sensitive or personal notes | (not committed to shared repos) |
 
 ### Adding New Directories
@@ -62,7 +62,7 @@ tags: [relevant, tags, here]
 Use this decision guide:
 
 1. **Is it about a specific feature or project area?** → Use or create a project directory (e.g., `entity-map/`, `capital-calls/`)
-2. **Is it general learning, a reference guide, or cross-cutting knowledge?** → `learning/`
+2. **Is it general reference material, a guide, or cross-cutting knowledge?** → `reference/`
 3. **Is it sensitive or personal?** → `private/`
 
 When in doubt, prefer a project-specific directory over `learning/`. Project directories provide better context grouping when revisiting past decisions.
