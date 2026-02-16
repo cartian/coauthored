@@ -33,16 +33,39 @@ When working on a new project area that doesn't fit existing directories, create
 
 ## File Naming Convention
 
-All files must be prefixed with the date:
+Files use three segments separated by double underscores (`__`):
 
 ```
-YYYYMMDD-descriptive-name.md
+YYYYMMDD__type__description-in-kebab-case.md
 ```
 
-Examples:
-- `20260209-portfolio-node-unification-analysis.md`
-- `20260128-crm-entity-permissions-design.md`
-- `20260203-debugging-cross-service-404-fund-admin-networking.md`
+### Document types
+
+| Type | Use for |
+|------|---------|
+| `design` | Architecture decisions, technical designs, feature designs |
+| `plan` | Implementation plans, execution plans, upcoming work |
+| `status` | Project updates, leadership summaries, MVP status |
+| `investigation` | Debugging narratives, root cause analysis, research |
+| `guide` | Onboarding docs, how-tos, explainers, reference guides |
+| `walkthrough` | Code path walkthroughs, annotated traces |
+| `test` | Manual test plans and results |
+| `session` | Session summaries |
+| `review` | Code review notes and feedback |
+
+### Examples
+
+- `20260209__investigation__portfolio-node-unification.md`
+- `20260128__design__crm-entity-permissions.md`
+- `20260211__status__leadership-notes.md`
+- `20260205__plan__crm-graph-refinements.md`
+
+### Filtering by type
+
+```bash
+ls *__design__*     # all designs in current directory
+ls *__status__*     # all status updates
+```
 
 ## Required Frontmatter
 

@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GP Embedded Entity Map &mdash; Status Update</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    /* Carta brand */
+    --carta-black: #1a1a1a;
+    --carta-white: #ffffff;
+    --carta-coral: #ff7d55;
+    --carta-teal: #addfd9;
+    --carta-peach: #fae5de;
+    --carta-gray-body: #676767;
+    --carta-gray-light: #e6e6e6;
+    --carta-gray-bg: #f5f5f3;
+
+    /* Semantic */
+    --warn: #c4453a;
+    --warn-bg: #fae5de;
+    --good: #1a7a5a;
+    --good-bg: #addfd9;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--carta-black);
+    color: var(--carta-black);
+  }
+
+  /* ── Slide wrapper ── */
+  .deck {
+    height: 100vh;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+  }
+
+  .slide {
+    min-height: 100vh;
+    scroll-snap-align: start;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+    position: relative;
+  }
+
+  .slide-inner {
+    max-width: 820px;
+    width: 100%;
+  }
+
+  /* ── Slide backgrounds ── */
+  .slide--dark {
+    background: var(--carta-black);
+    color: var(--carta-white);
+  }
+
+  .slide--light {
+    background: var(--carta-white);
+    color: var(--carta-black);
+  }
+
+  .slide--gray {
+    background: var(--carta-gray-bg);
+    color: var(--carta-black);
+  }
+
+  .slide--peach {
+    background: var(--carta-peach);
+    color: var(--carta-black);
+  }
+
+  .slide--teal {
+    background: var(--carta-teal);
+    color: var(--carta-black);
+  }
+
+  /* ── Typography ── */
+  .slide-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 24px;
+    opacity: 0.5;
+  }
+
+  .slide--dark .slide-label { color: var(--carta-coral); opacity: 1; }
+
+  h1 {
+    font-size: 48px;
+    font-weight: 300;
+    line-height: 1.15;
+    letter-spacing: -0.5px;
+    margin-bottom: 20px;
+  }
+
+  h2 {
+    font-size: 32px;
+    font-weight: 300;
+    line-height: 1.25;
+    letter-spacing: -0.3px;
+    margin-bottom: 20px;
+  }
+
+  .lead {
+    font-size: 20px;
+    font-weight: 400;
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+
+  .body {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--carta-gray-body);
+    margin-bottom: 12px;
+  }
+
+  .slide--dark .body { color: rgba(255,255,255,0.65); }
+
+  .body:last-child { margin-bottom: 0; }
+
+  .body strong {
+    color: var(--carta-black);
+    font-weight: 600;
+  }
+
+  .slide--dark .body strong { color: var(--carta-white); }
+
+  /* ── Stat callout ── */
+  .big-stat {
+    font-size: 72px;
+    font-weight: 700;
+    color: var(--carta-coral);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-caption {
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--carta-gray-body);
+  }
+
+  .slide--dark .stat-caption { color: rgba(255,255,255,0.6); }
+
+  /* ── Timeline ── */
+  .timeline {
+    margin: 32px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .timeline li {
+    position: relative;
+    padding-left: 28px;
+    padding-bottom: 24px;
+    border-left: 2px solid var(--carta-gray-light);
+  }
+
+  .timeline li:last-child { padding-bottom: 0; }
+
+  .timeline li::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: 4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--carta-black);
+  }
+
+  .timeline li.current::before {
+    background: var(--carta-coral);
+    box-shadow: 0 0 0 4px var(--carta-peach);
+  }
+
+  .tl-date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--carta-gray-body);
+    margin-bottom: 4px;
+  }
+
+  .tl-text {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--carta-black);
+  }
+
+  /* ── Issue cards ── */
+  .issue {
+    background: var(--carta-white);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 12px;
+    border-left: 4px solid var(--warn);
+  }
+
+  .issue-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--carta-black);
+  }
+
+  .issue-desc {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--carta-gray-body);
+  }
+
+  /* ── Good card ── */
+  .good-card {
+    background: var(--good-bg);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+
+  .good-card p {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--carta-black);
+  }
+
+  /* ── Checklist ── */
+  .checklist {
+    list-style: none;
+    padding: 0;
+    margin: 24px 0 0;
+  }
+
+  .checklist li {
+    position: relative;
+    padding-left: 32px;
+    margin-bottom: 16px;
+    font-size: 17px;
+    line-height: 1.5;
+  }
+
+  .checklist li::before {
+    position: absolute;
+    left: 0;
+    top: 3px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .checklist .todo::before { content: "\25CB"; color: var(--carta-gray-body); }
+  .checklist .done::before { content: "\2713"; color: var(--good); }
+
+  .checklist strong { font-weight: 600; }
+
+  .checklist .sub {
+    font-size: 14px;
+    color: var(--carta-gray-body);
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* ── Bullet list ── */
+  .bullets {
+    list-style: none;
+    padding: 0;
+    margin: 20px 0 0;
+  }
+
+  .bullets li {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 14px;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .bullets li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 9px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--carta-coral);
+  }
+
+  .slide--dark .bullets li::before { background: var(--carta-coral); }
+
+  .bullets li strong { font-weight: 600; }
+
+  /* ── Divider ── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--carta-gray-light);
+    margin: 28px 0;
+  }
+
+  .slide--dark .divider { border-top-color: rgba(255,255,255,0.12); }
+
+  /* ── Nav dots ── */
+  .nav {
+    position: fixed;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .nav a {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .nav a.active {
+    background: var(--carta-coral);
+    transform: scale(1.4);
+  }
+
+  .nav a:hover {
+    background: rgba(255,255,255,0.6);
+  }
+
+  /* ── Slide counter ── */
+  .slide-counter {
+    position: fixed;
+    bottom: 24px;
+    right: 28px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,0.35);
+    z-index: 100;
+    letter-spacing: 1px;
+  }
+
+  /* ── Code ── */
+  code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9em;
+    background: rgba(0,0,0,0.06);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .slide--dark code {
+    background: rgba(255,255,255,0.1);
+  }
+
+  /* ── Logo ── */
+  .carta-wordmark {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0.35;
+    position: absolute;
+    bottom: 28px;
+    left: 48px;
+  }
+
+  .slide--dark .carta-wordmark { color: var(--carta-white); }
+  .slide--light .carta-wordmark,
+  .slide--gray .carta-wordmark,
+  .slide--peach .carta-wordmark,
+  .slide--teal .carta-wordmark { color: var(--carta-black); }
+</style>
+</head>
+<body>
+
+<!-- Navigation dots -->
+<nav class="nav" id="nav"></nav>
+<div class="slide-counter" id="counter"></div>
+
+<div class="deck" id="deck">
+
+  <!-- ═══ SLIDE 1: TITLE ═══ -->
+  <section class="slide slide--dark" id="s0">
+    <div class="slide-inner">
+      <div class="slide-label">P&amp;E Leadership Update &middot; Feb 11, 2026</div>
+      <h1>GP Embedded<br>Entity Map</h1>
+      <p class="lead" style="color: rgba(255,255,255,0.6); max-width: 560px;">Building an investor-centric graph visualization, embedded in the GP's Partner Portfolio view.</p>
+      <p class="body" style="margin-top: 32px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--carta-coral);">IN PROGRESS</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 2: CONTEXT ═══ -->
+  <section class="slide slide--light" id="s1">
+    <div class="slide-inner">
+      <div class="slide-label">Context</div>
+      <h2>GPs are portfolio holders. The firm-wide entity map is a CFO tool. It doesn't make sense to link a GP there.</h2>
+      <p class="body">Instead, we embed a tailored graph in the surface they already use &mdash; the Partner Portfolio view. The GP sees their own position: what funds they're in, through what structures, with what financial exposure.</p>
+      <hr class="divider">
+      <p class="body">This is the first "embedded" deployment of the entity map engine. The same technology gets reconfigured for a different persona. The architecture is designed so that <strong>other teams build their own views on top of the same engine.</strong></p>
+      <p class="body"><strong>The LPPA team</strong> is already building LP fund-of-funds views in parallel. They have their own backend but consume the same visualization layer. The patterns we're establishing are shared infrastructure.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 3: PERMISSION LANDSCAPE ═══ -->
+  <section class="slide slide--gray" id="s2">
+    <div class="slide-inner">
+      <div class="slide-label">Background</div>
+      <h2>Carta's fund permissions are per-fund, per-user, per-role. This matters for the entity map.</h2>
+      <p class="body">A GP member gets <strong>roles</strong> assigned to <strong>specific funds</strong> within a firm. Each role carries a subset of view permissions. There are five standard roles:</p>
+      <ul class="bullets">
+        <li><strong>Investments</strong> &mdash; view_investments</li>
+        <li><strong>Fund Admin</strong> &mdash; view_fund_admin_data, view_investments</li>
+        <li><strong>Partners</strong> &mdash; view_partners</li>
+        <li><strong>Fund Performance</strong> &mdash; view_fund_performance, view_fund_admin_data, view_investments</li>
+        <li><strong>Audit</strong> &mdash; view_general_ledger, view_partners, view_fund_admin_data, view_investments</li>
+      </ul>
+      <p class="body">A GP might have Investments + Partners on Fund A, Fund Performance on Fund B, and no access to Fund C &mdash; all in the same firm. Permissions are assigned manually by firm admins, not granted automatically by membership.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 4: WHY GPS FAIL ═══ -->
+  <section class="slide slide--peach" id="s3">
+    <div class="slide-inner">
+      <div class="slide-label">The Permission Problem</div>
+      <h2>The entity map requires all five view permissions on every fund. Most GPs fail this check on two axes.</h2>
+      <div class="issue">
+        <div class="issue-title">Gate 1: Right permissions</div>
+        <div class="issue-desc">The entity map shows investments, partners, financials, balance sheets, and GL-derived metrics. To prevent partial data exposure, it requires all five view permission categories. A GP with the common "Edit" role set (Investments + Partners + Fund Admin + Fund Performance) has <strong>4 of 5</strong> &mdash; they're missing <code>view_general_ledger</code>. Only the Audit role includes GL access, and most non-auditor GPs don't have it.</div>
+      </div>
+      <div class="issue">
+        <div class="issue-title">Gate 2: Right scope</div>
+        <div class="issue-desc">Even with all five permissions, the check requires them on <strong>every non-deleted fund in the firm</strong>. At a firm with 10 funds, a GP with access to 3 fails &mdash; the check compares {3 funds} == {10 funds} and returns false. It's binary: all or nothing.</div>
+      </div>
+      <p class="body" style="margin-top: 16px;"><strong>This is intentional.</strong> The graph builder returns all connected funds with no per-user filtering. Relaxing permissions without adding data filtering would leak fund data across permission boundaries. So we block access entirely until we can filter properly.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 5: VELOCITY ═══ -->
+  <section class="slide slide--dark" id="s4">
+    <div class="slide-inner">
+      <div class="slide-label">Last Two Weeks</div>
+      <div class="big-stat">5</div>
+      <p class="stat-caption" style="margin-bottom: 32px;">PRs merged to master across two repos</p>
+      <p class="lead" style="color: var(--carta-white);">Two backend PRs on fund-admin. Three frontend PRs on carta-frontend-platform. The first pair built the investor-rooted pipeline. The second pair added the investor root node. The fifth was a dev-only debugger.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 6: TIMELINE ═══ -->
+  <section class="slide slide--light" id="s5">
+    <div class="slide-inner">
+      <div class="slide-label">Timeline</div>
+      <h2>Two-week sprint</h2>
+      <ul class="timeline">
+        <li>
+          <div class="tl-date">Jan 28 &ndash; Feb 3 &middot; PR #49859 + PR #19451</div>
+          <div class="tl-text">CRM entity graph views &mdash; constructing a graph from an investor rather than a firm. One full review round, 7 items addressed: replaced over-mocked tests, fixed N+1 query, simplified API surface.</div>
+        </li>
+        <li>
+          <div class="tl-date">Feb 5 &middot; PR #19608</div>
+          <div class="tl-text">Entity Map Debugger &mdash; dev-only tool for visualizing API responses against mock data and custom payloads. Doesn't ship to production.</div>
+        </li>
+        <li>
+          <div class="tl-date">Feb 4 &ndash; Feb 11 &middot; PR #50628 + PR #19703</div>
+          <div class="tl-text">Individual portfolio root node &mdash; the investor at the top of their graph, with personal financial metrics. Purpose-built React Flow components. Major architectural rework: deleted ~200 lines, added ~130.</div>
+        </li>
+        <li class="current">
+          <div class="tl-date">Now</div>
+          <div class="tl-text">Fixing data correctness issues and planning follow-up refinements from reviewer feedback.</div>
+        </li>
+      </ul>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 7: CODE REVIEW ═══ -->
+  <section class="slide slide--gray" id="s6">
+    <div class="slide-inner">
+      <div class="slide-label">Architecture</div>
+      <h2>Code review is shaping how consumer teams will contribute to the engine.</h2>
+      <p class="body">The original approach &mdash; a separate builder class for investor views &mdash; would have set a pattern where every consumer team forks the pipeline. If GP, LPPA, accountant, and founder teams each fork it, you get parallel pipelines that drift apart.</p>
+      <p class="body">The reviewer pushed toward <strong>"configure, don't fork"</strong>: new view types are expressed as fetcher registry configurations, not pipeline subclasses.</p>
+      <ul class="bullets">
+        <li><strong>Consumer teams contribute node types and fetchers</strong> &mdash; not builder forks</li>
+        <li><strong>The graph assembly logic stays in one place</strong> and improves for everyone</li>
+        <li><strong>New views are additive</strong> &mdash; register your fetchers, get a graph</li>
+        <li><strong>The interface</strong> is the fetcher registry: well-defined, testable, and the same for every consumer team</li>
+      </ul>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 8: WHAT DOESN'T WORK ═══ -->
+  <section class="slide slide--peach" id="s7">
+    <div class="slide-inner">
+      <div class="slide-label">Honest State of Things</div>
+      <h2>It renders. The data on screen isn't correct yet.</h2>
+      <div class="issue">
+        <div class="issue-title">Individual portfolio shows wrong numbers</div>
+        <div class="issue-desc">The root node renders with financial metrics, but the values are incorrect. The backend returns partner-level metrics; the frontend card renderer isn't mapping the right fields. You see numbers &mdash; they're just the wrong numbers.</div>
+      </div>
+      <div class="issue">
+        <div class="issue-title">GP is missing from their own partner list</div>
+        <div class="issue-desc">When you expand the GP Entity, the GP themselves should appear as a partner. The fetcher excludes managing members &mdash; correct for the firm view, wrong when the GP is the subject.</div>
+      </div>
+      <div class="issue">
+        <div class="issue-title">GP Carried Interest isn't there</div>
+        <div class="issue-desc">The number GPs care about most. Carry calculation lives in the GP Entity app; the integration hasn't been built. The investor sees commitment, called capital, distributions, NAV &mdash; but not carry.</div>
+      </div>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 9: MORE GAPS ═══ -->
+  <section class="slide slide--peach" id="s8">
+    <div class="slide-inner">
+      <div class="slide-label">Honest State of Things (cont.)</div>
+      <div class="issue">
+        <div class="issue-title">Multi-firm support isn't there</div>
+        <div class="issue-desc">A GP in funds across multiple firms sees one firm at a time. No aggregated cross-firm view, no firm picker. ~80% of customers are single-firm, so this isn't a blocker for most &mdash; but it's incomplete.</div>
+      </div>
+      <div class="issue">
+        <div class="issue-title">No fund-level permission scheme</div>
+        <div class="issue-desc">Currently all-or-nothing: requires all three view permissions to access the map at all. The intended design is fund-level gating &mdash; show only funds the GP has access to. Requires a post-fetch permission filter that hasn't been built.</div>
+      </div>
+      <div class="issue">
+        <div class="issue-title">No end-to-end dogfooding path</div>
+        <div class="issue-desc">Backend is functional. Frontend components exist. But the feature flag wiring, Partner Dashboard entry point, and full rendering pipeline haven't been tested as a connected flow.</div>
+      </div>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 10: WHAT WORKS ═══ -->
+  <section class="slide slide--teal" id="s9">
+    <div class="slide-inner">
+      <div class="slide-label">What's Actually Working</div>
+      <h2>The backend pipeline is solid.</h2>
+      <p class="body" style="color: var(--carta-black);">Given an investor and a firm, the API returns a correct, complete graph &mdash; investor root node, GP entities, funds, feeders, portfolios &mdash; all with accurate financial metrics and proper security.</p>
+      <div class="good-card" style="background: rgba(255,255,255,0.5);">
+        <p><strong>For single-firm, single-fund investors &mdash; the common case &mdash; the graph renders with the correct structure.</strong> Topology and relationships are right. Node card values are wrong, but the shape of the graph is correct.</p>
+      </div>
+      <p class="body" style="color: var(--carta-black);"><strong>117</strong> backend integration tests. <strong>207</strong> unit tests. Firm-scoped access, IDOR protection, defense-in-depth verification. Two rounds of serious code review.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 11: PERMISSIONS PLAN ═══ -->
+  <section class="slide slide--light" id="s10">
+    <div class="slide-inner">
+      <div class="slide-label">Permissions: The Plan</div>
+      <h2>What's solved, what's not, and when it needs to be done.</h2>
+      <p class="body"><strong>Solved now:</strong></p>
+      <ul class="bullets">
+        <li><strong>Firm-level isolation</strong> &mdash; IDOR protection validates investor belongs to the firm. No cross-firm data leakage. Defense-in-depth at the data layer.</li>
+        <li><strong>Staff bypass</strong> for development and dogfooding &mdash; works today.</li>
+        <li><strong>Permission infrastructure exists</strong> &mdash; <code>PermissionService</code> already returns the set of funds a user can access. The plumbing is there.</li>
+      </ul>
+      <hr class="divider">
+      <p class="body"><strong>What needs to be built:</strong> Fund-level filtering inside the graph builder. Pass the requesting user's ID in, query their permitted funds, filter graph nodes and edges to that set, prune orphaned sub-trees. Then relax the permission class from <code>HasAllViewPermissions</code> to <code>IsFirmMember</code>.</p>
+      <p class="body"><strong>When:</strong> Before any customer rollout. This is a prerequisite, not a nice-to-have. For internal use and demos, the staff bypass is sufficient.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 12: GP EXPERIENCE ═══ -->
+  <section class="slide slide--gray" id="s11">
+    <div class="slide-inner">
+      <div class="slide-label">Deep Dive: The Real GP Experience</div>
+      <h2>We're demoing as a staff user. A real GP would see something different.</h2>
+      <p class="body">As <code>ian.wessen@carta.com</code> (staff), <code>IsStaff</code> bypasses every permission check. The graph loads, the data renders. That's our current demo.</p>
+      <p class="body">A real GP hits two gates:</p>
+      <ul class="bullets">
+        <li><strong>Feature flag</strong> &mdash; <code>GPE_215_CRM_ENTITY_MAP</code> via Flipper. If off, the section doesn't render at all. No error, no placeholder &mdash; invisible.</li>
+        <li><strong>Permissions</strong> &mdash; requires all five view permissions on every fund. Most GPs don't have that. They'd get a <strong>403 &mdash; Permission Denied</strong>.</li>
+      </ul>
+      <hr class="divider">
+      <p class="body"><strong>Bottom line:</strong> a GP today either sees nothing (flag off) or gets a permission error (flag on). Even a GP who passed both gates would see the same unfiltered graph &mdash; no user-level data filtering exists yet. That changes once fund-level permission filtering is built.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 13: METRICS ═══ -->
+  <section class="slide slide--dark" id="s12">
+    <div class="slide-inner">
+      <div class="slide-label">Deep Dive: Metrics &amp; Monitoring</div>
+      <h2 style="color: var(--carta-white);">Frontend: instrumented. Backend: not yet.</h2>
+      <p class="body">The entity map frontend already has <strong>~45 Snowplow tracking events</strong> &mdash; page renders, node interactions, cross-product navigation clicks. We can already answer "how many people load the map" and "what do they click on."</p>
+      <p class="body">The backend has zero analytics. The infrastructure exists (DataDog APM, StatsD, ddtrace) but hasn't been wired into entity map endpoints or services.</p>
+      <hr class="divider">
+      <p class="body" style="color: var(--carta-white);"><strong>What we'd want to track:</strong></p>
+      <ul class="bullets">
+        <li><strong>Usage</strong> &mdash; endpoint hits by view type, unique users/firms per week, return visits, permission denied rate</li>
+        <li><strong>Performance</strong> &mdash; API response time, graph build duration, node fetch time, graph size distribution</li>
+        <li><strong>Engagement</strong> &mdash; cross-product click-throughs (cap table, 409A, fund financials), interaction depth, feature layer usage</li>
+        <li><strong>Errors</strong> &mdash; graph build failures, empty responses, rendering errors</li>
+      </ul>
+      <p class="body" style="margin-top: 16px;">Backend metrics should be added before customer rollout &mdash; we need performance baselines before real traffic.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 14: PATH FORWARD ═══ -->
+  <section class="slide slide--light" id="s13">
+    <div class="slide-inner">
+      <div class="slide-label">Path Forward</div>
+      <h2>To demoable</h2>
+      <ul class="checklist">
+        <li class="todo"><strong>Fix individual portfolio metrics</strong><span class="sub">Frontend card renderer reads the correct API response fields</span></li>
+        <li class="todo"><strong>Fix GP partner visibility</strong><span class="sub">GP appears in their own GP Entity's partner list</span></li>
+        <li class="todo"><strong>End-to-end wiring</strong><span class="sub">Feature flag, Partner Dashboard entry point, full render test as a connected flow</span></li>
+      </ul>
+      <hr class="divider">
+      <h2 style="margin-top: 8px;">To customer rollout</h2>
+      <ul class="checklist">
+        <li class="todo"><strong>Carried interest</strong><span class="sub">Integration with GP Entity carry service &mdash; the headline metric</span></li>
+        <li class="todo"><strong>Fund-level permissions</strong><span class="sub">Per-node access filtering, post-fetch permission checks</span></li>
+        <li class="todo"><strong>Multi-firm UX</strong><span class="sub">Disable firmless URL or add firm picker</span></li>
+        <li class="todo"><strong>Backend instrumentation</strong><span class="sub">Performance baselines and usage metrics before real traffic</span></li>
+        <li class="todo"><strong>Internal dogfooding &rarr; select customers &rarr; GA</strong></li>
+      </ul>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 15: VISION ═══ -->
+  <section class="slide slide--dark" id="s14">
+    <div class="slide-inner">
+      <div class="slide-label">Vision</div>
+      <h2 style="color: var(--carta-white);">MVP: a coherent graph for the common case.</h2>
+      <p class="body">A single-firm GP opens their Partner Dashboard, sees a graph of their portfolio, and <strong>the data is right</strong>. Correct structure, correct numbers, correct relationships. That's what we're building toward now.</p>
+      <hr class="divider">
+      <h2 style="color: var(--carta-white); margin-top: 8px;">Then: all portfolios, tailored experience.</h2>
+      <ul class="bullets">
+        <li><strong>Near-term</strong> &mdash; carried interest as the headline metric, fund-level permissions so any GP can use it, multi-fund handling within a single firm</li>
+        <li><strong>Medium-term</strong> &mdash; multi-firm aggregation, tailored GP card layouts reflecting what GPs care about (carry, distributions, unrealized value &mdash; not balance sheets and GL entries), historical comparison across quarter-ends</li>
+        <li><strong>Longer-term</strong> &mdash; portfolio analytics (concentration risk, vintage diversification), complex portfolio structures (multiple vehicles, co-investments), LP-facing white-labeled views, API access for institutional reporting</li>
+      </ul>
+      <p class="body" style="margin-top: 20px;">The graph engine and fetcher registry are designed for this progression. Each new persona or capability is a new set of fetchers and node types &mdash; not a new pipeline.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+  <!-- ═══ SLIDE 16: WHY IT MATTERS ═══ -->
+  <section class="slide slide--gray" id="s15">
+    <div class="slide-inner">
+      <div class="slide-label">If Someone Asks</div>
+      <h2>Why does this matter?</h2>
+      <p class="body">Carta has fund accounting, cap table, and valuation data in a single system. No one else does. The Entity Map makes that convergence <em>visible</em>. The graph is commodity tech &mdash; the data underneath it is the moat.</p>
+      <p class="body">Every node is a doorway into a deeper Carta product. Click a portfolio company to see its cap table. Click a fund to see financials. Click an asset to see its 409A.</p>
+      <hr class="divider">
+      <p class="body"><strong>The GP embedded version specifically:</strong> GPs visiting Carta to see their portfolio, exposure, and eventually carry. A retention and engagement play &mdash; a reason to come back regularly, not just at quarter-end.</p>
+    </div>
+    <div class="carta-wordmark">Carta</div>
+  </section>
+
+
+</div>
+
+<script>
+(function() {
+  const deck = document.getElementById('deck');
+  const slides = deck.querySelectorAll('.slide');
+  const nav = document.getElementById('nav');
+  const counter = document.getElementById('counter');
+  const total = slides.length;
+
+  // Build nav dots
+  slides.forEach((_, i) => {
+    const a = document.createElement('a');
+    a.href = '#s' + i;
+    a.dataset.index = i;
+    nav.appendChild(a);
+  });
+
+  const dots = nav.querySelectorAll('a');
+
+  function updateNav() {
+    const scrollTop = deck.scrollTop;
+    const viewH = deck.clientHeight;
+    let current = 0;
+    slides.forEach((s, i) => {
+      if (scrollTop >= s.offsetTop - viewH / 2) current = i;
+    });
+    dots.forEach((d, i) => {
+      d.classList.toggle('active', i === current);
+      // Adapt dot color to slide bg
+      const slide = slides[current];
+      const isDark = slide.classList.contains('slide--dark');
+      d.style.background = d.classList.contains('active')
+        ? 'var(--carta-coral)'
+        : isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)';
+    });
+    counter.textContent = (current + 1) + ' / ' + total;
+    // Adapt counter color
+    const isDark = slides[current].classList.contains('slide--dark');
+    counter.style.color = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)';
+  }
+
+  deck.addEventListener('scroll', updateNav);
+  updateNav();
+
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    const scrollTop = deck.scrollTop;
+    const viewH = deck.clientHeight;
+    let current = 0;
+    slides.forEach((s, i) => {
+      if (scrollTop >= s.offsetTop - viewH / 2) current = i;
+    });
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') {
+      e.preventDefault();
+      if (current < total - 1) slides[current + 1].scrollIntoView({ behavior: 'smooth' });
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (current > 0) slides[current - 1].scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+
+  // Click to advance
+  deck.addEventListener('click', function(e) {
+    if (e.target.closest('a')) return; // don't intercept nav dot clicks
+    const scrollTop = deck.scrollTop;
+    const viewH = deck.clientHeight;
+    let current = 0;
+    slides.forEach((s, i) => {
+      if (scrollTop >= s.offsetTop - viewH / 2) current = i;
+    });
+    if (current < total - 1) slides[current + 1].scrollIntoView({ behavior: 'smooth' });
+  });
+})();
+</script>
+
+</body>
+</html>
