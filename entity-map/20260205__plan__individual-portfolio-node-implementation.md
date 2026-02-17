@@ -683,3 +683,9 @@ Check that there's an edge from the individual_portfolio node to the GP entity n
 | 4 | Integrate into EntityMapService | `entity_map_service.py` |
 | 5 | Update backend integration tests | Test file |
 | 6 | Manual verification | curl commands |
+
+## Related
+
+- [20260205__design__individual-portfolio-node.md](20260205__design__individual-portfolio-node.md) — Design document for this implementation
+- [20260205__plan__crm-graph-refinements.md](20260205__plan__crm-graph-refinements.md) — Follow-up refinements after initial implementation
+- [20260211__plan__multi-fund-root-fix.md](20260211__plan__multi-fund-root-fix.md) — Fixes arbitrary partner selection issue in multi-fund scenarios

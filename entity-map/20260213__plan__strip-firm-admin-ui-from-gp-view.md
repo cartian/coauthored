@@ -189,3 +189,7 @@ rush test --only=@carta/entity-map
 | `ErrorView.tsx` | Conditionally render back button |
 | `ErrorView.test.tsx` | Add empty organizationPk test |
 | `DocumentsTable.tsx` | Early return with CRM empty state |
+
+## Related
+
+- [20260203__design__portfolio-entry-architecture.md](20260203__design__portfolio-entry-architecture.md) — Design establishing the separate entry point architecture that necessitates stripping firm-admin UI from GP views

@@ -156,3 +156,8 @@ make it fully consistent with how other nodes are fetched, but:
 | `fund_admin/entity_map/entity_map_service.py` | Remove `partner_metrics_handler`, simplify `get_crm_entity_tree()` |
 | `tests/backend/fund_admin/entity_map/test_entity_map_service.py` | Update CRM entity tree tests |
 | `tests/backend/fund_admin/entity_map/test_crm_entity_graph_builder.py` | Update builder tests |
+
+## Related
+
+- [20260211__plan__fetcher-registry-refinement.md](20260211__plan__fetcher-registry-refinement.md) — Implementation plan addressing the architectural issues identified in this investigation
+- [20260210__walkthrough__code-paths.md](20260210__walkthrough__code-paths.md) — Broader code path analysis providing context for the fetcher service architecture

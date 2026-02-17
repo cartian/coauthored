@@ -119,3 +119,7 @@ poetry run pytest tests/backend/fund_admin/entity_map/test_entity_map_service.py
 ## Estimated size
 
 ~30 lines net delta across 5 files. Single-fund investors produce identical behavior (one UUID in list → one edge).
+
+## Related
+
+- [20260205__design__individual-portfolio-node.md](20260205__design__individual-portfolio-node.md) — Original design that introduced the individual_portfolio node with single-fund assumption this plan corrects

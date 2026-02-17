@@ -229,3 +229,8 @@ They're all pointing to the same thing: the unique identifier of whoever (or wha
 ---
 
 *Questions? The Entity Map codebase lives in `fund_admin/entity_map/`. Start with `crm_entity_graph_service.py` for the graph construction logic.*
+
+## Related
+
+- [20260205__design__individual-portfolio-node.md](20260205__design__individual-portfolio-node.md) — Design document that uses the crm_entity_id/portfolio_uuid equivalence established by this proof
+- [20260206__guide__background-context.md](20260206__guide__background-context.md) — Background guide explaining the broader entity map architecture and investor-centric view concepts

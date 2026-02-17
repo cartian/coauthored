@@ -261,3 +261,7 @@ These are explicitly out of scope for the initial implementation, but worth noti
 The Entity Map DevApp Debugger is a focused tool for one job: quickly visualizing node/edge data without the overhead of the full application. By keeping scope minimal and reusing existing utilities, we get a useful debugging tool with minimal implementation effort.
 
 The design follows established patterns in the monorepo, uses only existing dependencies, and leaves clear extension points for future needs.
+
+## Related
+
+- [20260204__guide__debugger.md](20260204__guide__debugger.md) — User guide for the debugger tool

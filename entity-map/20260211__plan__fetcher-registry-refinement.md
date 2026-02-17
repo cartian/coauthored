@@ -139,3 +139,8 @@ Item #3 (CRM-specific branching in `build_graph`) is a low-priority refinement t
 | `graph_builder.py` | Use `NodeFetcherService.default()` / `.for_crm_entity()`; conditionally emit `fund_partners` identifiers |
 | `tests/backend/.../test_node_fetcher_service.py` | Test factory classmethods and registered_types property |
 | `tests/backend/.../test_entity_map_service.py` | Verify CRM entity views don't emit fund_partners identifiers |
+
+## Related
+
+- [20260210__investigation__nodefetcherservice-partner-metrics.md](20260210__investigation__nodefetcherservice-partner-metrics.md) — Investigation of partner metrics fetching issues that led to this refinement plan
+- [20260210__walkthrough__code-paths.md](20260210__walkthrough__code-paths.md) — Code path analysis providing architectural context for fetcher registry patterns

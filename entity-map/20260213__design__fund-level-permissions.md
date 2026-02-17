@@ -139,3 +139,9 @@ The real performance win: filtering before node fetching means we never query pa
 - The permission relaxation (`HasAllViewPermissions` → `IsFirmMember`) MUST ship with the filtering. Without filtering, `IsFirmMember` alone would expose all funds in the firm to any firm member.
 - IDOR validation (`_validate_crm_entity_in_firm`) is unchanged — still prevents cross-firm access.
 - `None` means staff/no-filter, `set()` means "user has no fund permissions" → empty graph. These are distinct and both handled correctly.
+
+## Related
+
+- [20260128__design__crm-entity-permissions.md](20260128__design__crm-entity-permissions.md) — Earlier permissions design that this evolved from
+- [20260213__plan__fund-level-permissions.md](20260213__plan__fund-level-permissions.md) — Implementation plan for fund-level filtering
+- [20260213__review__fund-permissions-implementation.md](20260213__review__fund-permissions-implementation.md) — Code review notes

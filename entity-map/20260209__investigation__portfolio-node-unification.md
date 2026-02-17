@@ -232,3 +232,7 @@ If a third portfolio type does emerge, **Option B** (unified type with polymorph
 | Portfolio node creation in graph | `fund_admin/entity_map/graph_builder.py` | 186-197 |
 | Individual portfolio root node creation | `fund_admin/entity_map/crm_entity_graph_builder.py` | 94-103 |
 | fund_partners exclusion for CRM views | `fund_admin/entity_map/graph_builder.py` | 83-90 |
+
+## Related
+
+- [20260205__design__individual-portfolio-node.md](20260205__design__individual-portfolio-node.md) — Design document that introduced the two separate portfolio node types analyzed in this investigation

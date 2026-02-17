@@ -101,6 +101,10 @@ rspack.plugins.moduleFederationPlugin({
 4. **Independent evolution** - Each entry point can evolve without affecting the other
 5. **Faster load** - No init endpoint latency for portfolio views
 
+## Related
+
+- [20260213__plan__strip-firm-admin-ui-from-gp-view.md](20260213__plan__strip-firm-admin-ui-from-gp-view.md) — GP view cleanup work building on separate entry point architecture
+
 ## Alternatives Considered
 
 **Option: Make firm fields optional in FundAdminContext**

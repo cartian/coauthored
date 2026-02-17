@@ -229,3 +229,8 @@ The response should look like:
 - The driving use case is GP Members answering "What funds am I invested in?"
 - V1 scope intentionally defers portfolio company nodes - focus on fund-level visibility
 - This is Phase 1 (backend only) - frontend integration comes in Phase 3
+
+## Related
+
+- [20260126__design__crm-entity-graph-views.md](20260126__design__crm-entity-graph-views.md) — Original design for CRM entity graph views that this investigation was validating
+- [20260128__test__crm-entity-api-results.md](20260128__test__crm-entity-api-results.md) — Manual testing results that revealed the incorrect graph structure

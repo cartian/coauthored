@@ -511,3 +511,8 @@ Expected: 4 commits, all entity_map files, no untracked/unstaged changes.
 | `tests/backend/fund_admin/entity_map/views/test_entity_map_crm_entity_view.py` | Add view-level permission integration tests |
 
 Total: 6 implementation files + 2 test files = 8 files (within the 15-file target).
+
+## Related
+
+- [20260213__design__fund-level-permissions.md](20260213__design__fund-level-permissions.md) — Design document establishing fund-level permission filtering architecture
+- [20260213__review__fund-permissions-implementation.md](20260213__review__fund-permissions-implementation.md) — Code review notes and feedback on implementation

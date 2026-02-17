@@ -24,8 +24,9 @@ Before writing a file, check existing subdirectories with `ls` and place the doc
 | Directory | Purpose | Examples |
 |-----------|---------|---------|
 | `entity-map/` | Entity Map feature work in fund-admin | Design docs, graph architecture analysis, CRM entity views |
-| `reference/` | General technical reference material and cross-cutting knowledge | Permissions overviews, proxy architecture notes, security guides |
+| `reference/` | General technical reference material and cross-cutting knowledge | Permissions overviews, proxy architecture notes, security guides, decision log |
 | `private/` | Sensitive or personal notes | (not committed to shared repos) |
+| `transcripts/` | Notable conversation moments — debugging breakthroughs, design debates, learning checkpoints | Atomic excerpts of valuable reasoning, not full sessions |
 
 ### Adding New Directories
 
@@ -52,6 +53,7 @@ YYYYMMDD__type__description-in-kebab-case.md
 | `test` | Manual test plans and results |
 | `session` | Session summaries |
 | `review` | Code review notes and feedback |
+| `transcript` | Notable conversation moments — debugging breakthroughs, design debates, learning checkpoints |
 
 ### Examples
 
@@ -89,3 +91,40 @@ Use this decision guide:
 3. **Is it sensitive or personal?** → `private/`
 
 When in doubt, prefer a project-specific directory over `learning/`. Project directories provide better context grouping when revisiting past decisions.
+
+## Cross-Referencing Conventions
+
+### Backlinks (`## Related` sections)
+
+Every document should have a `## Related` section at the bottom with relative markdown links to related docs and PRs. Add these when relationships are obvious (design ↔ plan, investigation → design, doc → PR). Don't force it on docs that stand alone.
+
+```markdown
+## Related
+- [Fund-level permissions design](20260213__design__fund-level-permissions.md) — this plan implements that design
+- [PR #51165](https://github.com/pccarta/fund-admin/pull/51165) — implementation
+```
+
+### Decision Log (`reference/decisions.md`)
+
+Append-only file tracking architectural decisions across all projects. Add an entry when making a non-trivial design choice — especially when alternatives were considered and rejected. Format:
+
+```markdown
+### YYYY-MM-DD — Short title
+
+**Context:** 1-2 sentences on the problem.
+**Decision:** What we decided.
+**Rationale:** Why, including what we rejected.
+**Project:** entity-map | fund-admin | etc.
+```
+
+### PR Archaeology (project README tables)
+
+Project READMEs include a `## Pull Requests` table mapping PR numbers to repos, descriptions, and links to related docs. Update when PRs ship.
+
+### Transcripts (`transcripts/`)
+
+Save notable conversation moments as standalone files in `transcripts/`. One file per moment — a debugging breakthrough, a design debate, a learning checkpoint where the reasoning process has value beyond the outcome. Standard naming convention with `transcript` type. Frontmatter includes `source_session` (date of conversation) and `decisions` (links to decision log entries produced).
+
+### Domain Skills (`.claude/skills/`)
+
+Curated domain context files that Claude Code loads on invocation. Each skill summarizes architecture, key abstractions, permission models, gotchas, and includes pointers to deeper docs. Update periodically as features evolve.

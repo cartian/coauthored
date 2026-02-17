@@ -178,3 +178,7 @@ V1 builds the room with basic furniture (fund relationships). Everyone who enter
 | **Where filtering happens** | N/A | Service layer |
 
 This approach is simple today and extensible tomorrow. We're not building abstractions we don't need yet, but we're also not painting ourselves into a corner.
+
+## Related
+
+- [20260213__design__fund-level-permissions.md](20260213__design__fund-level-permissions.md) — Evolved design for fund-level permission filtering in GP views

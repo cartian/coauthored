@@ -176,3 +176,9 @@ Same pattern as multi-fund. The individual_portfolio node can have edges to inve
 | Krakatoa Fund IV GP (GP Entity fund) | `4a55f602-375c-4211-a579-09075405de08` |
 | Krakatoa Ventures Fund IV (Main Fund) | `4b6a4f7b-e79d-42d2-9dc9-d35fb0df6a07` |
 | Krakatoa Ventures (Firm) | `186fb573-a22d-4c82-8ad3-3186f9095a41` |
+
+## Related
+
+- [20260205__plan__individual-portfolio-node-implementation.md](20260205__plan__individual-portfolio-node-implementation.md) — Implementation plan for this design
+- [20260209__investigation__portfolio-node-unification.md](20260209__investigation__portfolio-node-unification.md) — Follow-up work to unify portfolio node types
+- [20260211__plan__multi-fund-root-fix.md](20260211__plan__multi-fund-root-fix.md) — Fix for multi-fund edge selection logic

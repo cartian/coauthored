@@ -663,3 +663,10 @@ This enables finer-grained, per-entity permission checks and centralizes permiss
 ### GP Entity Carry Data
 
 Integrate with GP Entity app's carry calculation service (via gRPC) to show carry exposure in node metadata.
+
+## Related
+
+- [20260128__session__crm-entity-views.md](20260128__session__crm-entity-views.md) — Implementation session notes
+- [20260128__investigation__crm-entity-graph-structure-fix.md](20260128__investigation__crm-entity-graph-structure-fix.md) — Bug discovered during implementation
+- [20260128__test__crm-entity-api-results.md](20260128__test__crm-entity-api-results.md) — Initial manual test results
+- [20260202__status__crm-entity-graph.md](20260202__status__crm-entity-graph.md) — Project status after PR feedback
