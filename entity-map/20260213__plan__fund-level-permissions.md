@@ -2,9 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Filter the CRM entity (GP portfolio) entity map graph to only show funds the requesting GP has `view_investments` permission on.
+**Goal:** Filter the CRM entity (GP portfolio) entity map graph to only show funds the requesting GP has `view_investments` ∩ `view_partners` ∩ `view_fund_performance` permissions on.
 
-**Architecture:** The view queries `PermissionService` for the user's permitted fund UUIDs, passes the set through `EntityMapService` to `InvestedInRelationshipGraphBuilder.build_for_crm_entity()`, which filters the firm graph before subgraph traversal. GraphBuilder and NodeFetcherService never see unpermitted funds. `IndividualPortfolioNodeFetcher` also filters its partner list to match.
+**Architecture:** The view queries `PermissionService` for the intersection of three permissions (`view_investments`, `view_partners`, `view_fund_performance`), passes the set to `EntityMapService`, which filters the relationship graph before passing it to `GraphBuilder`. GraphBuilder and NodeFetcherService never see unpermitted funds. `IndividualPortfolioNodeFetcher` consults the filtered graph's `fund_ids_to_fund` for scope — no separate `permitted_fund_uuids` threading through `NodeFetchRequest` or `GraphBuilder`.
+
+**Key design change (from galonsky PR review):** The graph is the single source of truth for "what's visible." The fetcher doesn't get a separate permission set — it just asks the graph which funds exist. This eliminates the double-filtering smell and keeps the fetcher "dumb."
 
 **Tech Stack:** Django 4.2, Python 3.11, DRF, pytest with real DB fixtures
 
@@ -124,27 +126,7 @@ poetry run pytest tests/backend/fund_admin/entity_map/test_entity_map_service.py
 
 Expected: FAIL because `get_crm_entity_tree` doesn't accept `permitted_fund_uuids` yet.
 
-**Step 3: Add `permitted_fund_uuids` param to `build_for_crm_entity()`**
-
-In `invested_in_relationship_graph.py`, modify `build_for_crm_entity`:
-
-```python
-def build_for_crm_entity(
-    self,
-    firm_id: UUID,
-    crm_entity_uuid: UUID,
-    permitted_fund_uuids: set[UUID] | None = None,
-) -> InvestedInRelationshipGraph:
-```
-
-After `firm_graph = self.build_for_firm(firm_id=firm_id)` (around line 427), add:
-
-```python
-    if permitted_fund_uuids is not None:
-        firm_graph = firm_graph.filtered_to_permitted_funds(permitted_fund_uuids)
-```
-
-**Step 4: Add `permitted_fund_uuids` param to `get_crm_entity_tree()`**
+**Step 3: Add `permitted_fund_uuids` param to `get_crm_entity_tree()`**
 
 In `entity_map_service.py`, modify `get_crm_entity_tree`:
 
@@ -158,18 +140,23 @@ def get_crm_entity_tree(
 ) -> Graph:
 ```
 
-Pass it through to the builder:
+Filter the graph after building, before passing to GraphBuilder:
 
 ```python
     invested_in_relationship_graph = InvestedInRelationshipGraphBuilder(
         fund_service=FundService(),
         partner_service=PartnerService(),
-    ).build_for_crm_entity(
-        firm_id=firm_id,
-        crm_entity_uuid=crm_entity_uuid,
-        permitted_fund_uuids=permitted_fund_uuids,
-    )
+    ).build_for_crm_entity(firm_id=firm_id, crm_entity_uuid=crm_entity_uuid)
+
+    if permitted_fund_uuids is not None:
+        invested_in_relationship_graph = (
+            invested_in_relationship_graph.filtered_to_permitted_funds(
+                permitted_fund_uuids
+            )
+        )
 ```
+
+Note: filtering happens at the service layer, not inside `build_for_crm_entity`. The builder stays permission-unaware. The service orchestrates: build → filter → render.
 
 **Step 5: Run test to verify it passes**
 
@@ -195,35 +182,23 @@ git commit -m "feat(entity-map): wire permitted_fund_uuids through service and b
 
 ---
 
-## Task 3: Filter Partners in `IndividualPortfolioNodeFetcher`
+## Task 3: Scope `IndividualPortfolioNodeFetcher` to Graph's Fund Set
 
-The root node fetcher queries partners independently of the relationship graph. Without filtering here, root metrics would include data from unpermitted funds even though those fund nodes are absent from the graph.
+The root node fetcher independently queries all partners for the CRM entity and resolves their funds. After graph filtering (Task 2), the fetcher should consult the filtered graph for scope instead of independently building its own fund universe.
+
+Per galonsky's review: "the fetcher should consult the graph to see which funds to limit the search to." The graph is the single source of truth for visibility.
 
 **Files:**
-- Modify: `fund_admin/entity_map/services/domain.py:10` (add field to `NodeFetchRequest`)
 - Modify: `fund_admin/entity_map/services/node_fetcher_service.py:431` (`IndividualPortfolioNodeFetcher.fetch`)
-- Modify: `fund_admin/entity_map/graph_builder.py:160` (pass `permitted_fund_uuids` into `NodeFetchRequest`)
 - Test: covered by Task 2's service-level tests (root node metrics should reflect only permitted funds)
 
-**Step 1: Add field to `NodeFetchRequest`**
+**No changes to:** `domain.py` (no `permitted_fund_uuids` on `NodeFetchRequest`)
 
-In `fund_admin/entity_map/services/domain.py`:
+**Note:** `graph_builder.py` gets a one-liner to pass `invested_in_relationship_graph` through to `NodeFetchRequest` in `build_graph()`. This field already existed on the dataclass but wasn't being populated.
 
-```python
-@dataclass
-class NodeFetchRequest:
-    """Request to fetch node data for specific node identifiers."""
+**Step 1: Scope `IndividualPortfolioNodeFetcher.fetch()` to graph's fund set**
 
-    firm_uuid: UUID
-    node_identifiers: list[NodeIdentifier]
-    end_date: date | None = None
-    invested_in_relationship_graph: InvestedInRelationshipGraph | None = None
-    permitted_fund_uuids: set[UUID] | None = None
-```
-
-**Step 2: Filter partners in `IndividualPortfolioNodeFetcher.fetch()`**
-
-In `node_fetcher_service.py`, after fetching partners (line 442-447), add filtering:
+In `node_fetcher_service.py`, replace the independent fund resolution with graph-scoped filtering. Graph funds get both edges and metrics; non-graph funds (GP entity funds) get edge-only UUID resolution:
 
 ```python
     partners = self._partner_service.list_domain_objects(
@@ -233,83 +208,62 @@ In `node_fetcher_service.py`, after fetching partners (line 442-447), add filter
     if not partners:
         continue
 
-    # Filter to partners in permitted funds only
-    if request.permitted_fund_uuids is not None:
-        partner_fund_ids = [p.fund_id for p in partners]
-        funds = self._fund_service.get_funds_by_id(fund_ids=partner_fund_ids)
-        partners = [
-            p for p in partners
-            if p.fund_id in funds
-            and funds[p.fund_id].uuid in request.permitted_fund_uuids
-        ]
-        if not partners:
+    # Use the relationship graph as the source of truth for which funds
+    # are in scope. The graph is already filtered to permitted funds
+    # before reaching the fetcher.
+    fund_ids_to_fund = (
+        request.invested_in_relationship_graph.fund_ids_to_fund
+        if request.invested_in_relationship_graph
+        else {}
+    )
+
+    seen_fund_ids: set[int] = set()
+    fund_uuids: list[str] = []
+    all_funds: list[FundDomain] = []
+    partner_uuid_by_fund_id: dict[int, str] = {}
+    for p in partners:
+        if p.fund_id in seen_fund_ids:
             continue
+        seen_fund_ids.add(p.fund_id)
+
+        fund = fund_ids_to_fund.get(p.fund_id)
+        if fund and fund.uuid:
+            # Fund is in the graph — include for both edges and metrics
+            fund_uuids.append(str(fund.uuid))
+            all_funds.append(fund)
+            partner_uuid_by_fund_id[fund.id] = str(p.uuid)
+        else:
+            # Fund not in the graph (e.g. GP entity fund). Resolve
+            # UUID for edge creation but skip metric aggregation.
+            resolved = self._fund_service.get_by_fund_id(fund_id=p.fund_id)
+            if resolved and resolved.uuid:
+                fund_uuids.append(str(resolved.uuid))
 ```
 
-Note: The partner domain object has `fund_id` (int), not `fund_uuid` (UUID). We need to resolve fund_id → uuid via the fund service. Check if `self._fund_service` has `get_funds_by_id` or a similar batch lookup. Adapt the filter logic to whatever method exists.
+Key design point: GP entity funds aren't in the relationship graph (excluded by `build_for_firm`). Their UUIDs are still needed for root → GP entity node edges, but they're excluded from `all_funds` so their partner metrics aren't aggregated into the root node.
 
-**Step 3: Thread `permitted_fund_uuids` into `NodeFetchRequest` from `GraphBuilder`**
+**Step 2: Write a test asserting root metrics only reflect permitted funds**
 
-In `graph_builder.py`, modify `build_graph` to accept and forward the set:
+Add to the service test file. Create a CRM entity invested in Fund A (commitment 100k) and Fund B (commitment 200k). Pass `permitted_fund_uuids={fund_a.uuid}` to `get_crm_entity_tree`. Assert the individual_portfolio root node's metrics show commitment = 100k, not 300k.
 
-```python
-def build_graph(
-    self,
-    firm_uuid: UUID,
-    invested_in_relationship_graph: InvestedInRelationshipGraph,
-    end_date: date | None = None,
-    crm_entity_uuid: UUID | None = None,
-    permitted_fund_uuids: set[UUID] | None = None,
-) -> Graph:
-```
-
-And in the `NodeFetchRequest` construction:
-
-```python
-    fetch_response = self._node_fetcher_service.fetch_nodes(
-        NodeFetchRequest(
-            firm_uuid=firm_uuid,
-            node_identifiers=node_identifiers,
-            end_date=end_date,
-            permitted_fund_uuids=permitted_fund_uuids,
-        )
-    )
-```
-
-**Step 4: Update `EntityMapService.get_crm_entity_tree()` to pass through to `build_graph`**
-
-```python
-    return crm_graph_builder.build_graph(
-        firm_uuid=firm_id,
-        invested_in_relationship_graph=invested_in_relationship_graph,
-        end_date=end_date,
-        crm_entity_uuid=crm_entity_uuid,
-        permitted_fund_uuids=permitted_fund_uuids,
-    )
-```
-
-**Step 5: Write a test asserting root metrics only reflect permitted funds**
-
-Add to the service test file. Create a CRM entity invested in Fund A (commitment 100k) and Fund B (commitment 200k). Pass `permitted_fund_uuids={fund_a.uuid}`. Assert the individual_portfolio root node's metrics show commitment = 100k, not 300k.
-
-**Step 6: Run tests**
+**Step 3: Run tests**
 
 ```bash
 poetry run pytest tests/backend/fund_admin/entity_map/test_entity_map_service.py::TestGetCrmEntityTree -v
 ```
 
-**Step 7: Format, lint**
+**Step 4: Format, lint**
 
 ```bash
-poetry run ruff format fund_admin/entity_map/services/domain.py fund_admin/entity_map/services/node_fetcher_service.py fund_admin/entity_map/graph_builder.py fund_admin/entity_map/entity_map_service.py
-poetry run ruff check --fix fund_admin/entity_map/services/domain.py fund_admin/entity_map/services/node_fetcher_service.py fund_admin/entity_map/graph_builder.py fund_admin/entity_map/entity_map_service.py
+poetry run ruff format fund_admin/entity_map/services/node_fetcher_service.py
+poetry run ruff check --fix fund_admin/entity_map/services/node_fetcher_service.py
 ```
 
-**Step 8: Commit**
+**Step 5: Commit**
 
 ```bash
-git add fund_admin/entity_map/services/domain.py fund_admin/entity_map/services/node_fetcher_service.py fund_admin/entity_map/graph_builder.py fund_admin/entity_map/entity_map_service.py tests/backend/fund_admin/entity_map/test_entity_map_service.py
-git commit -m "feat(entity-map): filter individual_portfolio root metrics by permitted funds"
+git add fund_admin/entity_map/services/node_fetcher_service.py tests/backend/fund_admin/entity_map/test_entity_map_service.py
+git commit -m "refactor(entity-map): scope fetcher to graph's fund set instead of separate permission param"
 ```
 
 ---
@@ -364,7 +318,7 @@ In `entity_map_crm_entity_view.py`:
 from fund_admin.permissions.gp_permissions.permission_classes import (
     IsFirmMember,
 )
-from fund_admin.permissions.constants import StandardFundPermission
+from fund_admin.permissions.constants import StandardFundPermissionEnum as StandardFundPermission
 from fund_admin.permissions.services.permission_service import PermissionService
 ```
 
@@ -376,13 +330,22 @@ from fund_admin.permissions.services.permission_service import PermissionService
 
 3. Remove the TODO comment on line 46-47.
 
-4. Add the permission query method:
+4. Add the permission query method (intersects all three required permissions):
 
 ```python
+    _REQUIRED_FUND_PERMISSIONS = [
+        StandardFundPermission.VIEW_INVESTMENTS,
+        StandardFundPermission.VIEW_PARTNERS,
+        StandardFundPermission.VIEW_FUND_PERFORMANCE,
+    ]
+
     def _get_permitted_fund_uuids(
         self, request: Request, firm_uuid: UUID
     ) -> set[UUID] | None:
-        """Get the set of fund UUIDs the user has view_investments permission on.
+        """Get fund UUIDs where the user has all required view permissions.
+
+        A fund is visible only if the user has view_investments,
+        view_partners, AND view_fund_performance on it.
 
         :param request: The DRF request (contains user).
         :param firm_uuid: The firm to check permissions in.
@@ -392,12 +355,17 @@ from fund_admin.permissions.services.permission_service import PermissionService
             return None
 
         permission_service = PermissionService()
-        funds_qs = permission_service.get_funds_user_has_gp_permission_for(
-            firm_uuid=firm_uuid,
-            user=request.user,
-            permission_level=StandardFundPermission.VIEW_INVESTMENTS,
-        )
-        return set(funds_qs.values_list("uuid", flat=True))
+        fund_uuid_sets = [
+            set(
+                permission_service.get_funds_user_has_gp_permission_for(
+                    firm_uuid=firm_uuid,
+                    user=request.user,
+                    permission_level=perm,
+                ).values_list("uuid", flat=True)
+            )
+            for perm in self._REQUIRED_FUND_PERMISSIONS
+        ]
+        return set.intersection(*fund_uuid_sets) if fund_uuid_sets else set()
 ```
 
 5. Update `_get_crm_entity_tree` to accept and pass the request:
@@ -501,16 +469,17 @@ Expected: 4 commits, all entity_map files, no untracked/unstaged changes.
 
 | File | Change |
 |------|--------|
-| `fund_admin/entity_map/invested_in_relationship_graph.py` | Add `filtered_to_permitted_funds()` method + `permitted_fund_uuids` param on `build_for_crm_entity()` |
-| `fund_admin/entity_map/entity_map_service.py` | Add `permitted_fund_uuids` param to `get_crm_entity_tree()`, pass through |
-| `fund_admin/entity_map/graph_builder.py` | Add `permitted_fund_uuids` param to `build_graph()`, pass into `NodeFetchRequest` |
-| `fund_admin/entity_map/services/domain.py` | Add `permitted_fund_uuids` field to `NodeFetchRequest` |
-| `fund_admin/entity_map/services/node_fetcher_service.py` | Filter partner list in `IndividualPortfolioNodeFetcher.fetch()` |
-| `fund_admin/entity_map/views/entity_map_crm_entity_view.py` | Swap `HasAllViewPermissions` → `IsFirmMember`, add `_get_permitted_fund_uuids()`, thread through |
+| `fund_admin/entity_map/invested_in_relationship_graph.py` | Add `filtered_to_permitted_funds()` method |
+| `fund_admin/entity_map/entity_map_service.py` | Add `permitted_fund_uuids` param to `get_crm_entity_tree()`, filter graph before passing to builder |
+| `fund_admin/entity_map/services/node_fetcher_service.py` | Scope `IndividualPortfolioNodeFetcher` to graph's fund set for metrics; GP entity funds get edge-only UUID resolution |
+| `fund_admin/entity_map/graph_builder.py` | One-liner: pass `invested_in_relationship_graph` through to `NodeFetchRequest` |
+| `fund_admin/entity_map/views/entity_map_crm_entity_view.py` | Swap `HasAllViewPermissions` → `IsFirmMember`, add `_get_permitted_fund_uuids()` (3-permission intersection) |
 | `tests/backend/fund_admin/entity_map/test_entity_map_service.py` | Add permission filtering integration tests |
 | `tests/backend/fund_admin/entity_map/views/test_entity_map_crm_entity_view.py` | Add view-level permission integration tests |
 
-Total: 6 implementation files + 2 test files = 8 files (within the 15-file target).
+Unchanged: `services/domain.py` — no permission params needed downstream.
+
+Total: 5 implementation files + 2 test files = 7 files (within the 15-file target).
 
 ## Related
 

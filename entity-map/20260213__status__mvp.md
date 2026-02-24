@@ -42,7 +42,7 @@ Five PRs merged across `fund-admin` and `carta-frontend-platform` since Jan 28:
 - [**#50628**](https://github.com/carta/fund-admin/pull/50628) (Feb 11) -- Individual portfolio root node. The GP appears at the top of their graph with personal financial metrics.
 - **#19451** (Feb 4) -- CRM entity view support in the Partner Dashboard behind feature flag.
 - **#19703** (Feb 10) -- React Flow components for the individual portfolio node type.
-- **#19914** (merged Feb 13) -- Feature flag targeting. Passes `carta_id` to Flipper so we can enable the entity map for specific GPs without a broad rollout.
+- **#19914** (merged Feb 13) -- Feature flag targeting. Passes `portfolio_uuid` to Flipper so we can enable the entity map for specific GPs without a broad rollout.
 
 ## In review
 

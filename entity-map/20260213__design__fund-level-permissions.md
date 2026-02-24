@@ -17,12 +17,14 @@ Relaxing the gate without adding filtering would leak data — a GP with access 
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Permission level to gate fund visibility | `view_investments` | The entity map shows investment structure — `view_investments` is the natural fit. Single-permission check, most permissive reasonable gate. |
+| Permission levels to gate fund visibility | `view_investments` ∩ `view_partners` ∩ `view_fund_performance` | The entity map shows investment structure, partner data, and performance metrics. A fund is visible only if the user has all three. Raised by galonsky in PR #51165 review. |
 | Pruning behavior | Hard prune | If a fund is filtered out, its entire subtree disappears. No placeholder nodes, no disconnected orphans. No information leakage about unpermitted fund structure. |
 | Per-fund filtering through investment chains | Yes, fund-by-fund | Even if Fund B is reachable from permitted Fund A (A invests in B), Fund B requires its own `view_investments` permission. This matches how permissions are modeled in fund admin. |
-| Root node metrics | Aggregate visible funds only | Individual portfolio root metrics sum only funds the GP can see. Must match partner_portfolio summary/entity-list API numbers. |
+| Root node metrics | Aggregate visible funds only | Individual portfolio root metrics sum only funds the GP can see. Fetcher consults the graph for scope — no separate permission set needed. |
 | Filter insertion point | `InvestedInRelationshipGraph` | Filter the firm graph before subgraph traversal. GraphBuilder and NodeFetcherService never see unpermitted funds. Permissions are a topology constraint. |
-| User context passing | Permitted fund UUID set | View queries PermissionService, passes `set[UUID]` through the pipeline. Builder doesn't know about users or permissions — just filters by a set. `None` = no filtering (staff). |
+| User context passing | Permitted fund UUID set at graph level only | View queries PermissionService, passes `set[UUID]` to `EntityMapService` → `build_for_crm_entity()`. Graph gets filtered once. Downstream code (GraphBuilder, fetchers) consults the filtered graph — no `permitted_fund_uuids` threaded through `NodeFetchRequest` or `GraphBuilder`. |
+| Fetcher scope | Graph is source of truth | `IndividualPortfolioNodeFetcher` limits partner aggregation to funds in `request.invested_in_relationship_graph.fund_ids_to_fund`. No independent permission filtering. Raised by galonsky: "the fetcher should consult the graph to see which funds to limit the search to." |
+| GP entity fund partners | Excluded from root metrics | GP entity funds aren't in the graph (excluded by default in `build_for_firm`). Their partner metrics aren't aggregated into the root node. This is correct: GP entities are structural, shown as children of main funds. |
 | View scope | CRM entity view only | Firm and fund views keep their existing all-or-nothing checks. Those are admin/CFO views where partial visibility is a different UX question. |
 
 ## Architecture
@@ -35,7 +37,8 @@ Relaxing the gate without adding filtering would leak data — a GP with access 
 │                                                              │
 │  1. Validate CRM entity belongs to firm (IDOR prevention)    │
 │  2. Query PermissionService for permitted fund UUIDs         │
-│     (view_investments on firm)                               │
+│     (intersection of view_investments, view_partners,        │
+│      view_fund_performance)                                  │
 │  3. Pass set[UUID] | None to service layer                   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -43,33 +46,34 @@ Relaxing the gate without adding filtering would leak data — a GP with access 
 ┌─────────────────────────────────────────────────────────────┐
 │  SERVICE LAYER (EntityMapService)                            │
 │                                                              │
-│  Pass-through: routes permitted_fund_uuids to builder        │
-│  No permission logic here                                    │
+│  1. Build full CRM entity graph (all funds)                  │
+│  2. Filter: graph.filtered_to_permitted_funds(uuids)         │
+│  3. Pass filtered graph to GraphBuilder                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  RELATIONSHIP GRAPH BUILDER                                  │
+│  RELATIONSHIP GRAPH (InvestedInRelationshipGraph)             │
 │                                                              │
-│  1. Build firm graph (all funds)                             │
-│  2. NEW: firm_graph.filtered_to_permitted_funds(uuids)       │
+│  filtered_to_permitted_funds(uuids):                         │
 │     - Remove unpermitted funds from fund_ids_to_fund         │
 │     - Prune edges involving unpermitted funds                │
 │     - Remove partner pairs for pruned edges                  │
-│  3. BFS subgraph traversal from investor's fund entry points │
-│     (naturally stops at permission boundaries)               │
+│  Called by EntityMapService before passing to GraphBuilder    │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  GRAPH BUILDER + NODE FETCHER SERVICE                        │
 │                                                              │
-│  Unchanged — receives pre-filtered relationship graph        │
-│  Only fetches data for permitted funds                       │
+│  GraphBuilder passes invested_in_relationship_graph through  │
+│  to NodeFetchRequest (one-liner fix — field existed but      │
+│  wasn't populated).                                          │
 │                                                              │
-│  Exception: IndividualPortfolioNodeFetcher filters its       │
-│  partner list by permitted_fund_uuids before aggregating     │
-│  root node metrics (via NodeFetchRequest)                    │
+│  IndividualPortfolioNodeFetcher consults the graph's         │
+│  fund_ids_to_fund to scope partner metric aggregation.       │
+│  GP entity funds get edge-only UUID resolution.              │
+│  No separate permitted_fund_uuids parameter.                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -77,27 +81,24 @@ Relaxing the gate without adding filtering would leak data — a GP with access 
 
 ### `entity_map/views/entity_map_crm_entity_view.py`
 - Replace `HasAllViewPermissions` with `IsFirmMember` in permission_classes
-- Add `_get_permitted_fund_uuids(user, firm_uuid) -> set[UUID] | None`
+- Add `_get_permitted_fund_uuids(user, firm_uuid) -> set[UUID] | None` — intersects `view_investments`, `view_partners`, `view_fund_performance`
 - Pass permitted set to `entity_map_service.get_crm_entity_tree()`
 
 ### `entity_map/entity_map_service.py`
 - Add `permitted_fund_uuids: set[UUID] | None = None` param to `get_crm_entity_tree()`
-- Pass through to `build_for_crm_entity()`
+- Filter the graph after building, before passing to `GraphBuilder`
 
 ### `entity_map/invested_in_relationship_graph.py`
 - Add `filtered_to_permitted_funds(permitted_fund_uuids: set[UUID]) -> InvestedInRelationshipGraph` method on `InvestedInRelationshipGraph`
-- Add `permitted_fund_uuids: set[UUID] | None = None` param to `build_for_crm_entity()`
-- Call `firm_graph.filtered_to_permitted_funds()` after building firm graph, before subgraph traversal
-
-### `entity_map/services/domain.py`
-- Add `permitted_fund_uuids: set[UUID] | None = None` to `NodeFetchRequest`
 
 ### `entity_map/services/node_fetcher_service.py`
-- `IndividualPortfolioNodeFetcher.fetch()`: filter partner list by `request.permitted_fund_uuids` before metric aggregation
+- `IndividualPortfolioNodeFetcher.fetch()`: scope partner metric aggregation to funds in `request.invested_in_relationship_graph.fund_ids_to_fund`. GP entity funds (not in the graph) still get UUID resolution via `self._fund_service.get_by_fund_id()` for edge creation, but are excluded from metric aggregation.
 
 ### `entity_map/graph_builder.py`
-- Pass `permitted_fund_uuids` through to `NodeFetchRequest` in `build_graph()`
-- Update `create_for_crm_entity()` or `build_graph()` signature to accept and forward the set
+- One-liner: pass `invested_in_relationship_graph` through to `NodeFetchRequest` in `build_graph()`. This field already existed on the dataclass but wasn't being populated.
+
+### No changes needed:
+- `entity_map/services/domain.py` — no `permitted_fund_uuids` on `NodeFetchRequest`
 
 ## Test Strategy
 
