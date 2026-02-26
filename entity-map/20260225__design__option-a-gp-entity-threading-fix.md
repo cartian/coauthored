@@ -2,10 +2,12 @@
 date: 2026-02-25
 description: Design notes for the pragmatic fix that threads GP entity fund UUIDs through graph building
 repository: fund-admin
-tags: [entity-map, design, permissions, graph-builder]
+tags: [entity-map, design, permissions, graph-builder, superseded]
 ---
 
 # Option A: GP Entity Threading Fix
+
+> **Superseded.** This approach was prototyped and then abandoned in favor of a simpler fix: passing `exclude_entity_types=[MANAGEMENT_CO, ELIMINATION]` to `build_for_firm()` so GP entity funds stay in the relationship graph natively. See [PR #51788](https://github.com/carta/fund-admin/pull/51788) and the updated [investigation doc](./20260225__investigation__graph-building-inversion-bug.md). The description below is preserved for historical context.
 
 ## What it does
 

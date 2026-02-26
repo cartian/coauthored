@@ -303,11 +303,12 @@ The CRM entity view applies two layers of filtering:
 
 ### Fund-Level Permissions
 
-The view requires **all three** permissions on a fund for it to appear: `view_investments`, `view_partners`, and `view_fund_performance`. This is a three-way intersection — missing any one permission on a fund removes that fund from the graph entirely.
+The view requires `view_investments` and `view_fund_performance` on a fund for it to appear. This is a two-way intersection — missing either permission on a fund removes that fund from the graph entirely.
 
 - Staff users bypass this (`permitted_fund_uuids=None` → no filtering)
 - Firm members without any fund permissions get an empty graph (200, not 403)
 - Filtering happens via `InvestedInRelationshipGraph.filtered_to_permitted_funds()`, which prunes `fund_ids_to_fund` and edges before the graph is built
+- For the CRM entity view, GP entity funds are included in the relationship graph so they participate in permission filtering alongside LP funds
 
 > **Code**: `entity_map/views/entity_map_crm_entity_view.py` — `_get_permitted_fund_uuids()`
 

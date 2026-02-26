@@ -46,9 +46,11 @@ If the user's portfolio list does not include the requested Corporation, the req
 Once past the portfolio gate, the entity map view applies its own permission logic:
 
 - **Gate**: `IsFirmMember | IsStaff` — the user must be a FirmMember in the relevant firm, or a staff user.
-- **Filter**: `_get_permitted_fund_uuids()` queries `PermissionService.get_funds_user_has_gp_permission_for()` to find funds where the user has `view_investments`. Only these funds appear in the graph.
+- **Filter**: `_get_permitted_fund_uuids()` queries `PermissionService.get_funds_user_has_gp_permission_for()` for the intersection of `view_investments` and `view_fund_performance`. Only funds where the user holds both permissions appear in the graph.
 
 Staff users bypass filtering entirely (the method returns `None`, which means "show everything").
+
+> **History**: the original implementation required a three-way intersection (`view_investments ∩ view_partners ∩ view_fund_performance`). This was too restrictive — only 2 of 6 standard roles bundle all three. `view_partners` was dropped because the CRM entity view is scoped to a single investor and already excludes the `fund_partners` node. See [PR #51788](https://github.com/carta/fund-admin/pull/51788).
 
 ### How permissions are stored
 
@@ -65,11 +67,26 @@ A FirmMember can have FundPermission records on any fund in the firm — GP enti
 
 A GP principal like John Daley typically has:
 - Partner records in **GP Entity funds** (Fund II GP, Fund III GP, Fund IV GP)
-- FundPermission records on those **same GP Entity funds**
+- FundPermission records on **GP Entity funds** (often `gp_principal` — full permissions)
+- FundPermission records on **LP funds** managed by those GP entities (varies by role — `fund_admin`, `fund_performance`, `investments`, etc.)
 - A Corporation/CRMEntity that represents him as a legal person
 
-He does **not** have:
-- Partner records in LP funds
-- FundPermission records on LP funds (unless explicitly granted)
+He does **not** typically have:
+- Partner records in LP funds (his Partner records are in GP entity funds)
 
-This distinction is the source of the permission filtering bug documented separately.
+### Permission coverage by role
+
+| Role | `view_investments` | `view_fund_performance` | `view_partners` | Passes intersection? |
+|------|:-:|:-:|:-:|:-:|
+| `gp_principal` | ✓ | ✓ | ✓ | ✓ |
+| `audit` | ✓ | ✓ | ✓ | ✓ |
+| `fund_admin` | ✓ | ✗ | ✗ | ✗ |
+| `fund_performance` | ✓ | ✓ | ✗ | ✓ |
+| `investments` | ✓ | ✗ | ✗ | ✗ |
+| `partners` | ✗ | ✗ | ✓ | ✗ |
+
+The "Passes intersection?" column reflects the current gate (`view_investments ∩ view_fund_performance`). Before [PR #51788](https://github.com/carta/fund-admin/pull/51788), the intersection also required `view_partners`, which only `gp_principal` and `audit` passed.
+
+### Structural note: GP entity fund visibility
+
+`build_for_crm_entity()` now keeps GP entity funds in the relationship graph (see [PR #51788](https://github.com/carta/fund-admin/pull/51788)). Previously, GP entity funds were excluded from the graph by default, which meant `filtered_to_permitted_funds` never saw them. They now participate in permission filtering alongside LP funds.

@@ -455,106 +455,41 @@ else:
     portfolio_summary
 ```
 
-## Cell 11 — Core permission check
+## Cell 11 — Permission coverage: GP entity funds vs LP funds
 
-The `EntityMapCrmEntityView` requires three permissions for fund-level filtering:
-`view_investments`, `view_partners`, and `view_fund_performance`. This cell checks
-which users on the firm (from Cell 9's `firm_role_summary`) hold each of those
-permissions, with a boolean column per permission and a summary `has_all_3` flag.
+The key question for Entity Map permissions: do firm members have
+`view_investments` and `view_fund_performance` on the funds they'd actually
+navigate to? The answer may differ depending on whether the fund has GP partners
+(entity-level context) vs LP partners (investor-level context).
 
-This directly answers: "If we gate Entity Map behind these three permissions,
-how many of our target users would be blocked?"
+This cell splits the firm's funds into two buckets — funds with GP partners and
+funds with LP partners — then compares what percentage of firm members have each
+permission on each bucket. A fund can appear in both buckets if it has both
+partner types.
 
-Depends on Cell 9.
-
-```python
-core_perms = {"view_partners", "view_fund_performance", "view_investments"}
-
-check_df = firm_role_summary.copy()
-
-for perm in sorted(core_perms):
-    check_df[perm] = check_df["fund_permissions"].apply(lambda x: perm in x)
-
-check_df["has_all_3"] = check_df[sorted(core_perms)].all(axis=1)
-
-display_cols = [
-    "email", "user_id", "title", "fund_name", "roles",
-] + sorted(core_perms) + ["has_all_3"]
-
-core_perms_df = check_df[display_cols].sort_values(
-    ["has_all_3", "email"], ascending=[False, True]
-)
-
-has_all = core_perms_df["has_all_3"].sum()
-total = len(core_perms_df)
-print(f"{has_all}/{total} user-fund rows have all 3 core permissions")
-print(f"{core_perms_df[core_perms_df['has_all_3']]['email'].nunique()} unique users with full access")
-core_perms_df
-```
-
-## Cell 12 — Permission combination sampling
-
-Enumerates every possible subset of the three core permissions (8 combinations:
-none, three singles, three pairs, all three) and finds one example user for each
-combination that exists in the data. Skips combinations with no matching users.
-
-The `total_users_with_combo` column shows how common each combination is. This
-tells us whether a combination is a real pattern or a one-off anomaly.
-
-Depends on Cell 11 (`check_df`).
-
-```python
-from itertools import combinations
-
-core_perm_list = sorted(core_perms)
-
-# Build a column that represents each user's exact subset of the 3 core perms
-check_df["perm_combo"] = check_df["fund_permissions"].apply(
-    lambda x: frozenset(p for p in core_perm_list if p in x)
-)
-
-# All possible subsets: empty set, each single, each pair, all three
-all_subsets = [frozenset()]
-for r in range(1, len(core_perm_list) + 1):
-    for combo in combinations(core_perm_list, r):
-        all_subsets.append(frozenset(combo))
-
-examples = []
-for subset in all_subsets:
-    matches = check_df[check_df["perm_combo"] == subset]
-    if matches.empty:
-        continue
-    row = matches.iloc[0]
-    examples.append({
-        "combination": ", ".join(sorted(subset)) if subset else "(none of the 3)",
-        "count": len(subset),
-        "email": row["email"],
-        "user_id": row["user_id"],
-        "fund_name": row["fund_name"],
-        "roles": row["roles"],
-        "total_users_with_combo": matches["email"].nunique(),
-    })
-
-examples_df = pd.DataFrame(examples)
-print(f"{len(examples_df)} of {len(all_subsets)} possible combinations exist in the data")
-examples_df
-```
-
-## Cell 13 — `view_investments` coverage on LP funds
-
-Identifies funds that have active LP partners (i.e. actual investor funds, not
-GP-only vehicles), then checks what percentage of firm members have
-`view_investments` on those funds.
-
-This answers the specific question: "If a GP user navigates to the Entity Map
-for an LP's investment, will they have `view_investments` on the fund that
-investment is in?"
+The output is a comparison table with one row per permission per bucket, showing
+`users_with` / `users_total` and the percentage. If LP funds show significantly
+lower coverage than GP funds, that's a signal we may need to adjust which
+permissions gate the Entity Map.
 
 Depends on Cell 9 (`firm`, `firm_role_summary`).
 
 ```python
-# Find funds with LP partners, scoped to the firm from Cell 9
-lp_funds = (
+target_perms = ["view_investments", "view_fund_performance"]
+
+# Classify funds by partner type
+gp_fund_uuids = set(
+    Partner.objects
+    .filter(
+        fund__firm=firm,
+        partner_type__in=["general_partner", "managing_member"],
+        is_active=True,
+    )
+    .values_list("fund__uuid", flat=True)
+    .distinct()
+)
+
+lp_fund_uuids = set(
     Partner.objects
     .filter(
         fund__firm=firm,
@@ -564,43 +499,118 @@ lp_funds = (
     .values_list("fund__uuid", flat=True)
     .distinct()
 )
-lp_fund_uuids = set(lp_funds)
-print(f"{len(lp_fund_uuids)} funds with active LP partners across target firms")
 
-# Filter firm_role_summary to only LP funds
-lp_df = firm_role_summary[firm_role_summary["fund_uuid"].isin(lp_fund_uuids)].copy()
-lp_df["has_view_investments"] = lp_df["fund_permissions"].apply(
-    lambda x: "view_investments" in x
+print(f"Firm: {firm.name}")
+print(f"  {len(gp_fund_uuids)} funds with GP partners")
+print(f"  {len(lp_fund_uuids)} funds with LP partners")
+print(f"  {len(gp_fund_uuids & lp_fund_uuids)} funds with both")
+
+# Tag each user-fund row
+check_df = firm_role_summary.copy()
+check_df["is_gp_fund"] = check_df["fund_uuid"].isin(gp_fund_uuids)
+check_df["is_lp_fund"] = check_df["fund_uuid"].isin(lp_fund_uuids)
+
+for perm in target_perms:
+    check_df[perm] = check_df["fund_permissions"].apply(lambda x: perm in x)
+
+# Build comparison table
+def summarize_bucket(df, label):
+    rows = []
+    for perm in target_perms:
+        total = df["email"].nunique()
+        with_perm = df[df[perm]]["email"].nunique()
+        rows.append({
+            "fund_type": label,
+            "permission": perm,
+            "users_with": with_perm,
+            "users_total": total,
+            "pct": round(with_perm / total * 100, 1) if total > 0 else 0,
+        })
+    return rows
+
+results = []
+results += summarize_bucket(check_df[check_df["is_gp_fund"]], "GP entity funds")
+results += summarize_bucket(check_df[check_df["is_lp_fund"]], "LP funds")
+
+comparison_df = pd.DataFrame(results)
+print(f"\nPermission coverage comparison:")
+comparison_df
+```
+
+## Cell 12 — Per-fund breakdown: GP entity funds vs LP funds
+
+Drills into the per-fund detail behind Cell 11. Each row is a single fund with
+its type (GP, LP, or GP + LP), total member count, and the count/percentage of
+members holding each target permission.
+
+Use this to spot specific funds where coverage drops — e.g., a fund where only
+30% of members have `view_investments` might indicate a non-standard role
+configuration worth investigating.
+
+Depends on Cell 11 (`check_df`, `target_perms`).
+
+```python
+fund_detail_rows = []
+for _, fund_row in check_df.groupby(["fund_name", "fund_uuid", "is_gp_fund", "is_lp_fund"]):
+    fund_name = fund_row["fund_name"].iloc[0]
+    is_gp = fund_row["is_gp_fund"].iloc[0]
+    is_lp = fund_row["is_lp_fund"].iloc[0]
+
+    fund_type = []
+    if is_gp:
+        fund_type.append("GP")
+    if is_lp:
+        fund_type.append("LP")
+    fund_type_str = " + ".join(fund_type) if fund_type else "Neither"
+
+    total = fund_row["email"].nunique()
+    row_data = {
+        "fund_name": fund_name,
+        "fund_type": fund_type_str,
+        "total_members": total,
+    }
+    for perm in target_perms:
+        with_perm = fund_row[fund_row[perm]]["email"].nunique()
+        row_data[f"{perm}_count"] = with_perm
+        row_data[f"{perm}_pct"] = round(with_perm / total * 100, 1) if total > 0 else 0
+
+    fund_detail_rows.append(row_data)
+
+fund_detail_df = pd.DataFrame(fund_detail_rows).sort_values(
+    ["fund_type", "view_investments_pct"], ascending=[True, False]
 )
 
-# Per-fund breakdown
-firm_summary = (
-    lp_df
-    .groupby("fund_name")
-    .agg(
-        total_members=("email", "nunique"),
-        members_with_view_investments=("has_view_investments", "sum"),
-    )
-    .reset_index()
-)
-firm_summary["pct"] = (
-    firm_summary["members_with_view_investments"] / firm_summary["total_members"] * 100
-).round(1)
-firm_summary = firm_summary.sort_values("pct", ascending=False)
+print(f"{len(fund_detail_df)} funds")
+fund_detail_df
+```
 
-# Overall
-total_user_fund = len(lp_df)
-total_with = lp_df["has_view_investments"].sum()
-total_without = total_user_fund - total_with
-unique_with = lp_df[lp_df["has_view_investments"]]["email"].nunique()
-unique_total = lp_df["email"].nunique()
+## Cell 13 — Users missing permissions on LP funds
 
-print(f"\nOverall: {unique_with}/{unique_total} unique users ({unique_with/unique_total*100:.1f}%) "
-      f"have view_investments on at least one LP fund")
-print(f"{total_with}/{total_user_fund} user-fund rows ({total_with/total_user_fund*100:.1f}%) "
-      f"have view_investments")
-print(f"\nPer-fund breakdown:")
-firm_summary
+Lists firm members who have access to LP funds but are missing `view_investments`
+or `view_fund_performance`. These are the users who would be blocked from seeing
+Entity Map data if we gate on these permissions.
+
+If this list is long relative to the total member count on LP funds, it suggests
+the current permission assignment patterns don't align with our Entity Map
+permission requirements — and we may need to either adjust our gates or work with
+firms to update their role configurations.
+
+Depends on Cell 11 (`check_df`).
+
+```python
+lp_rows = check_df[check_df["is_lp_fund"]].copy()
+missing = lp_rows[~(lp_rows["view_investments"] & lp_rows["view_fund_performance"])]
+
+if missing.empty:
+    print("All members on LP funds have both view_investments and view_fund_performance.")
+else:
+    missing_display = missing[
+        ["email", "user_id", "title", "fund_name", "roles", "view_investments", "view_fund_performance"]
+    ].sort_values(["email", "fund_name"])
+
+    print(f"{missing_display['email'].nunique()} users missing at least one permission on LP funds")
+    print(f"{len(missing_display)} user-fund rows affected\n")
+    missing_display
 ```
 
 ---
