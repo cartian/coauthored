@@ -1,45 +1,44 @@
-# fund-admin — Session 2026-02-26
+# fund-admin — Session 2026-03-03
 
 ## What we shipped
-- Built and iterated on GP permission analysis Jupyter notebook (`~/Desktop/gp-permission-analysis.md`)
-  - 13 cells surveying `view_investments` and `view_fund_performance` across 31 target firms
-  - Aggregate coverage tables, per-firm breakdowns, GP Entity vs LP fund gap analysis
-  - Portfolio deep dive cell (Cell 12) for single CRMEntity UUID lookup
-  - Firm deep dive cell (Cell 13) for per-member permission audit by carta_id
-- Created Carta-branded HTML export (`~/Downloads/gp_fund_permissions_branded.html`)
-  - Stripped Jupyter boilerplate, applied Carta brand guidelines (Playfair Display, Plus Jakarta Sans, IBM Plex Mono)
-  - Full-width tables breaking out of 960px container, left-aligned headers
-- Wrote CRMEntity reference doc (`~/Projects/coauthored/reference/20260226__guide__what-is-a-crm-entity.md`)
-  - Multiple explanatory angles: relational, lifecycle, analogy, gotchas
-  - Includes CRMEntity vs PartnerInterestGroup comparison and three-layer hierarchy
+- Seeded complete Dominic Toretto test data across fund-admin and carta-web
+  - fund-admin: CRM Entity, 8 PIGs, 8 Partners, ~257 CATs, ~52 GL journals, 4 carry assignments, 8 PartnerContacts w/ permissions
+  - carta-web: User (dom@krakatoa.vc, id=77737), Organization (id=165153, type=individual), Corporation (id=2472, uuid matching CRM Entity), 8 CapitalAccounts, OrganizationMemberships
+- Working LP portfolio for Dominic Toretto at both:
+  - fund-admin: `/partner-portfolios/<entity_uuid>/entity-list`
+  - carta-web: `/investors/individual/2472/portfolio/`
+- Updated seed script (`scripts/seed_dominic_toretto.py`) with:
+  - PartnerContact + PartnerContactPermission creation
+  - accepted_date/sent_date on PIGs and Partners
+  - Comprehensive carta-web setup instructions in docstring
+- Documented the full cross-system architecture for partner portfolios
 
 ## What's in flight
 
-### GPE-299: Permission gate fix (pushed)
-Branch: `gpe-299.cartian.gpva_only_view_investments_permission` (pushed to remote)
-PR: #51788 (draft)
-
-Two-commit fix:
-1. Permission gate: `view_investments ∩ view_fund_performance` (dropped `view_partners`)
-2. Architecture: pass `exclude_entity_types=[MANAGEMENT_CO, ELIMINATION]` to `build_for_firm` in CRM entity path, keeping GP entities in the relationship graph for uniform permission filtering
-
-**Status**: Pushed and PR updated, but manual QA found a new bug. User has permissions on GP entity funds but not the LP funds they manage. After `filtered_to_permitted_funds`, only GP entities survive. `build_graph` filters those out, returns empty graph.
-
-### Carry branch
-`gpe-276.cartian.carried_interest_on_entity_map` — 4 commits ahead of master, needs fresh PR.
+### Branch: `gpe-310.cartian.as_of_date_in_entity_map_response`
+- Clean, 2 commits ahead of master
+- `as_of_date` in entity map API response
 
 ### Other open PRs
+- PR #51788 (GPE-299 permission gate fix) — draft
 - PR #50989 (fetcher registry refactor) — open
 - PR #50927 (architecture readme) — open, docs-only
 
 ## What's next
-- Decide permission transitivity model based on notebook findings
-- Key finding from notebook: 97.5% of users have `view_investments` on GP Entity funds, 87.5% have `view_fund_performance`. Only 1 user (0.4%) has LP fund access but is missing permissions. The permission gap is largely theoretical.
-- 46.5% of GP-permitted users have no LP-only fund access at all (firms use GP+LP funds, not separate LP funds)
-- Open carry PR (rebase carry branch first)
+- Open PR for as_of_date branch
+- Continue entity map feature work
+- Carry branch (`gpe-276.cartian.carried_interest_on_entity_map`) needs fresh PR
 
 ## Key decisions made
-- **`view_investments ∩ view_fund_performance`** as permission gate. `view_partners` dropped because CRM entity view is scoped to one investor's data.
-- **Keep GP entities in firm graph** for CRM entity path via `exclude_entity_types` parameter.
-- **FirmMember has no name field** — only `contact_email`, `user_id`, `title`. Names live in carta-web's User model.
-- **CRMEntity is not polymorphic** — it's always "the legal identity behind a fund commitment." `entity_type` is a tax classification (Individual, LLC, Trust, etc.), not a role. The CRMEntity UUID maps to carta-web Corporation UUID after sharing.
+- **Corporation UUID = CRM Entity UUID**: The critical cross-system invariant. fund-admin's `PartnerPortfolioService.get_partner_dashboard_init_metadata()` fetches Corporation UUID via gRPC from carta-web and uses it directly as the CRM Entity lookup key. These MUST match.
+- **Organization.organization_type must be 'individual'**: Default is 'investment_firm' which routes to firm portfolio view instead of individual portfolio view.
+- **PartnerContacts needed for LP permissions**: Primary contact with all permission flags enabled.
+- **Accepted/sent dates required**: PIGs and Partners need `accepted_date` and `sent_date` set for the portfolio to function properly.
+
+## Key data references
+- CRM Entity UUID: `6ad327a3-cfe4-4326-932f-c02709f71c9b`
+- CRM Organization UUID: `67cd533f-7f1a-40d1-a7c7-dbede1205398`
+- carta-web Corporation ID: 2472 (uuid matches CRM Entity)
+- carta-web Organization ID: 165153
+- carta-web User ID: 77737 (dom@krakatoa.vc)
+- Admin user: id=25 (admin@esharesinc.com)
