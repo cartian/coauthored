@@ -1,44 +1,42 @@
 # fund-admin — Session 2026-03-03
 
 ## What we shipped
-- Seeded complete Dominic Toretto test data across fund-admin and carta-web
-  - fund-admin: CRM Entity, 8 PIGs, 8 Partners, ~257 CATs, ~52 GL journals, 4 carry assignments, 8 PartnerContacts w/ permissions
-  - carta-web: User (dom@krakatoa.vc, id=77737), Organization (id=165153, type=individual), Corporation (id=2472, uuid matching CRM Entity), 8 CapitalAccounts, OrganizationMemberships
-- Working LP portfolio for Dominic Toretto at both:
-  - fund-admin: `/partner-portfolios/<entity_uuid>/entity-list`
-  - carta-web: `/investors/individual/2472/portfolio/`
-- Updated seed script (`scripts/seed_dominic_toretto.py`) with:
-  - PartnerContact + PartnerContactPermission creation
-  - accepted_date/sent_date on PIGs and Partners
-  - Comprehensive carta-web setup instructions in docstring
-- Documented the full cross-system architecture for partner portfolios
+- PR #52234: carry gate in `IndividualPortfolioNodeFetcher.fetch()` — suppresses `carried_interest_accrued` per-fund based on `show_carry_metrics_by_fund_ids` + `gp entity carry info sharing` Configuration
+- Updated `lp_sharing_to_date` in carta-web for Krakatoa LP funds (59, 58, 497, 498) → 2025-12-31, unblocking carry in entity map
+- Enabled carry info sharing Configuration for GP funds 90, 127, 501, 502
+- Deactivated duplicate Dominic Toretto partners (entity `341dc35e` seed re-run, entity `3322fc5b` pre-existing)
+- Created intra-firm partner link for Fund I GP → Fund I LP (partner_pk=4134, `partner_type='general_partner'`)
+- Updated seed script in coauthored with idempotency guard, import fix (`PartnerContactPermission` from `partner_contact`), field name fix (`annual_and_quarterly_reports`)
+- Investigation doc: `20260303__investigation__carry-discrepancy-entity-map-vs-portfolio-summary.md`
 
 ## What's in flight
-
-### Branch: `gpe-310.cartian.as_of_date_in_entity_map_response`
-- Clean, 2 commits ahead of master
-- `as_of_date` in entity map API response
-
-### Other open PRs
-- PR #51788 (GPE-299 permission gate fix) — draft
-- PR #50989 (fetcher registry refactor) — open
-- PR #50927 (architecture readme) — open, docs-only
+- Branch `gpe-333.cartian.apply_carry_gate_to_entity_map` — PR #52234 open, ready for review
 
 ## What's next
-- Open PR for as_of_date branch
-- Continue entity map feature work
-- Carry branch (`gpe-276.cartian.carried_interest_on_entity_map`) needs fresh PR
+- Follow-up: replace `min(sharing_dates)` global date with per-fund sharing dates in entity map
+- Consider adding carry info sharing config + sharing date setup to seed script
+- Fund II GP appears twice in graph (intra-firm links to both Fund II LP and Silver Spurs) — cosmetic but worth investigating
 
 ## Key decisions made
-- **Corporation UUID = CRM Entity UUID**: The critical cross-system invariant. fund-admin's `PartnerPortfolioService.get_partner_dashboard_init_metadata()` fetches Corporation UUID via gRPC from carta-web and uses it directly as the CRM Entity lookup key. These MUST match.
-- **Organization.organization_type must be 'individual'**: Default is 'investment_firm' which routes to firm portfolio view instead of individual portfolio view.
-- **PartnerContacts needed for LP permissions**: Primary contact with all permission flags enabled.
-- **Accepted/sent dates required**: PIGs and Partners need `accepted_date` and `sent_date` set for the portfolio to function properly.
+- Carry gate uses existing `show_carry_metrics_by_fund_ids` batch lookup, zeroes via `NAVMetrics.with_subtracted_component()`
+- Idempotency check uses `Partner.name` (reliable) not `IndividualEntityInfo.legal_name` (not populated for carta-web-synced entities)
+- Entity map graph is hierarchical (gp_entity → fund → portfolio branches), not flat connections
+
+## Root cause: $450K vs $2.6M carry discrepancy (RESOLVED)
+The entity map's `min(non-null lp_sharing_to_date)` across ALL funds in the graph was being pulled down by Fund IV LP (carta_id=498) which had `lp_sharing_to_date=2023-09-30`. This clamped `end_date` to 2023-09-30, causing `for_information_sharing_date()` to filter out all carry CATs dated after 2023-09-30. Only Fund I GP's 2022-12-31 CAT ($450K) survived. Updating Fund IV LP's sharing date to 2025-12-31 resolved it — entity map now shows $2,605,000 carry, matching the portfolio summary.
+
+Key lesson: any single fund with a stale `lp_sharing_to_date` poisons the entire entity map via `min()`. The planned per-fund sharing date fix would eliminate this class of bug.
 
 ## Key data references
 - CRM Entity UUID: `6ad327a3-cfe4-4326-932f-c02709f71c9b`
-- CRM Organization UUID: `67cd533f-7f1a-40d1-a7c7-dbede1205398`
 - carta-web Corporation ID: 2472 (uuid matches CRM Entity)
-- carta-web Organization ID: 165153
-- carta-web User ID: 77737 (dom@krakatoa.vc)
+- carta-web User: dom@krakatoa.vc (id=77737)
 - Admin user: id=25 (admin@esharesinc.com)
+- Firm UUID: `186fb573-a22d-4c82-8ad3-3186f9095a41`
+- GP fund carta_ids: 90 (Fund I GP, pk=668), 127 (Fund II GP, pk=676), 501 (Fund III GP, pk=698), 502 (Fund IV GP, pk=699)
+- LP fund carta_ids: 59 (Fund I, pk=693), 58 (Fund II, pk=60), 497 (Fund III, pk=694), 498 (Fund IV, pk=695), 124 (Growth Fund I, pk=673)
+
+## Key artifacts
+- `~/Projects/coauthored/entity-map/20260303__investigation__carry-discrepancy-entity-map-vs-portfolio-summary.md`
+- `~/Projects/coauthored/entity-map/20260303__guide__seed-dominic-toretto.py`
+- `~/Projects/coauthored/entity-map/20260303__investigation__carry-gate-parity-entity-map-vs-portfolio-summary.md`
