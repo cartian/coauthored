@@ -128,8 +128,7 @@ from fund_admin.capital_account.carried_interest.models import (
     CarriedInterestAssignment,
     PartnerCarriedInterestAssignment,
 )
-from fund_admin.capital_account.models.partner_contact import PartnerContact
-from fund_admin.capital_account.models.partner_contact_permission import PartnerContactPermission
+from fund_admin.capital_account.models.partner_contact import PartnerContact, PartnerContactPermission
 from fund_admin.general_ledger.accounting.fund.models import (
     FundJournal,
     FundJournalLine,
@@ -184,9 +183,24 @@ def create_journal(fund, effective_date, event_type, description, lines_data):
 
 with transaction.atomic():
     # =========================================================================
-    # 1. FIRM & CRM SETUP
+    # 0. IDEMPOTENCY CHECK
     # =========================================================================
     firm = Firm.objects.get(name__icontains="krakatoa")
+    existing = Partner.objects.filter(
+        fund__firm=firm,
+        name="Dominic Toretto",
+        is_active=True,
+    ).first()
+    if existing:
+        print(f"SKIP: Dominic Toretto already exists as partner {existing.uuid} "
+              f"(entity={existing.entity_id}) in {existing.fund.name}.")
+        print("To re-run, first deactivate existing partners.")
+        import sys
+        sys.exit(0)
+
+    # =========================================================================
+    # 1. FIRM & CRM SETUP
+    # =========================================================================
     print(f"Using firm: {firm.name} ({firm.id})")
 
     # Create CRMOrganization
@@ -724,9 +738,8 @@ with transaction.atomic():
             wire_instructions=True,
             capital_call_notices=True,
             distribution_notices=True,
-            financial_reports=True,
+            annual_and_quarterly_reports=True,
             tax_documents=True,
-            other_documents=True,
         )
 
     print(f"  Created {len(all_partners)} PartnerContact + PartnerContactPermission records")
